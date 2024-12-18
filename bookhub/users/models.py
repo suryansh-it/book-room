@@ -28,7 +28,7 @@ class CustomUserManager(BaseUserManager):
 class CustomUser(AbstractUser):
     ROLE_CHOICES = [
         ('reader', 'Reader'),
-        ('author', 'Author'),
+        
         ('admin', 'Admin'),
     ]
     username = None  # Remove username as an identifier
