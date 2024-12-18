@@ -3,10 +3,14 @@ import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
+# Use requests to send an HTTP request to Library Genesis.
+# Extract book information (title, author, download link, etc.) from the response.
+# Return the response to the frontend in JSON format.
+
 class BookSearchView(APIView):
     """🔍 Allows users to search for books on Library Genesis"""
 
-        def get(self, request):
+    def get(self, request):
         query = request.query_params.get('q', '')
         if not query:
             return Response({'error': 'Search query is required'}, status=400)
