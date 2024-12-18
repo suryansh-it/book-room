@@ -22,4 +22,24 @@ class CustomUserManager(BaseUserManager):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         return self.create_user(email,password,**extra_fields)
+    
+
+# Custom User Model
+class CustomUser(AbstractUser):
+    ROLE_CHOICES = [
+        ('reader', 'Reader'),
+        ('author', 'Author'),
+        ('admin', 'Admin'),
+    ]
+    username = None  # Remove username as an identifier
+    email = models.EmailField(unique=True)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='reader')
+
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = []
+
+    objects = CustomUserManager()
+
+    def __str__(self):
+        return self.email
         
