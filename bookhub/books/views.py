@@ -64,3 +64,23 @@ class BookDownloadView(APIView):
         )
         
         return Response({'message': 'Book downloaded successfully', 'book_id': book.id}, status=201)
+
+
+
+# ePub Parser: Use python-epub-reader to parse and render ePub files.
+# Book Reader API: Provide API endpoints for the user to read the book.
+# Frontend UI: Use JavaScript to load the ePub file and present it on the user interface.
+
+
+class BookReadView(APIView):
+    """📖 Allows users to read an ePub book in the app"""
+
+    def get(self, request, book_id):
+        book = Book.objects.get(id=book_id, user=request.user)
+        file_path = book.file_path.path
+
+        # Read the ePub file and extract text
+        with open(file_path, 'r', encoding='utf-8') as file:
+            content = file.read()
+        
+        return Response({'content': content}, status=200)
