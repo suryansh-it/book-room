@@ -10,6 +10,7 @@ from .serializers import UserSerializer, LoginSerializer
 
 class RegisterView(APIView):
     def post(self,request):
+        # Deserialize the request data using UserSerializer
         serializer= UserSerializer(data= request.data)
         if serializer.is_valid():
             user = serializer.save()
@@ -20,6 +21,7 @@ class RegisterView(APIView):
 # Login View
 class LoginView(APIView):
     def post(self, request):
+        # Deserialize the request data using LoginSerializer
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
             email = serializer.validated_data['email']
@@ -29,11 +31,13 @@ class LoginView(APIView):
             except CustomUser.DoesNotExist:
                 return Response({"error":"Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
             
+
+            # Check if the password is correct
             if user.check_password(password):
-                refresh = RefreshToken.for_user(user)
+                refresh = RefreshToken.for_user(user)    # Generate JWT tokens
                 return Response({
-                    'refresh':str(refresh),
-                    'access':str(refresh.access_token),
+                    'refresh':str(refresh),              # Return refresh token
+                    'access':str(refresh.access_token),     # Return access token
                 })
             
             return Response({'error': "invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)

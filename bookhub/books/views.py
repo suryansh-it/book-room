@@ -13,23 +13,24 @@ class BookSearchView(APIView):
     """🔍 Allows users to search for books on Library Genesis"""
 
     def get(self, request):
-        query = request.query_params.get('q', '')
+        query = request.query_params.get('q', '')       # Extract query parameter
         if not query:
             return Response({'error': 'Search query is required'}, status=400)
         
         # Check if results are already cached
-        cache_key = f'search_results_{query}'
-        cached_results = cache.get(cache_key)
+        cache_key = f'search_results_{query}'       # Unique cache key for this query
+        cached_results = cache.get(cache_key)       # Check if the data is in the cache
         
         if cached_results:
             return Response({'results': cached_results}, status=200)
 
 
+         # Call Library Genesis
         url = f'http://libgen.is/search.php?req={query}&open=0&res=100&view=simple&phrase=1&column=def'
         response = requests.get(url)
         
         # Extract book details (this might require parsing the response if it's HTML)
-        # For now, we're assuming we get a JSON response
+        # assuming we get a JSON response
         # Sample response handling (You may need BeautifulSoup to parse HTML)
         books = []  # Placeholder: This would be populated by scraping the website
         for book in books:
