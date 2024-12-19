@@ -3,6 +3,7 @@ import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import Book
+from bookhub.celery import download_book
 # Use requests to send an HTTP request to Library Genesis.
 # Extract book information (title, author, download link, etc.) from the response.
 # Return the response to the frontend in JSON format.
@@ -51,9 +52,7 @@ class BookDownloadView(APIView):
 
         # Save file locally
         file_path = f'media/books/epub/{title}.epub'
-        with open(file_path, 'wb') as file:
-            for chunk in response.iter_content(chunk_size=8192):
-                file.write(chunk)
+        download_book.delay(download_url,file_path)
         
         # Save metadata to the database
         book = Book.objects.create(

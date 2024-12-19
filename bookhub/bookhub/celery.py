@@ -1,9 +1,9 @@
 from celery import Celery
 import requests
 
-app = Celery('book_hub', broker='redis://localhost:6379/0')
+app = Celery('bookhub', broker='redis://localhost:6379/0')
 
-app.task
+@app.task
 def download_book(download_url, file_path):
     """📥 Background task for downloading ePub books"""
     response= requests.get(download_url, stream = True)
