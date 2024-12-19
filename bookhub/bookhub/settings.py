@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'books',
     'payments',
     'reviews',
+    'channels',
 ]
 
 MIDDLEWARE = [
@@ -139,4 +140,15 @@ REST_FRAMEWORK = {
     ),
 }
 
+ASGI_APPLICATION = 'bookhub.asgi.application'
+
+# Redis for Channels
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
 
