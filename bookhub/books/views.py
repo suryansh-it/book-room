@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from .models import Book
 from bookhub.celery import download_book
 from django.core.cache import cache
+from bs4 import BeautifulSoup
 # Use requests to send an HTTP request to Library Genesis.
 # Extract book information (title, author, download link, etc.) from the response.
 # Return the response to the frontend in JSON format.
@@ -29,6 +30,11 @@ class BookSearchView(APIView):
         url = f'http://libgen.is/search.php?req={query}&open=0&res=100&view=simple&phrase=1&column=def'
         response = requests.get(url)
         
+        if response.status_code != 200:
+            return Response({'error': 'Failed to fetch data from Library Genesis'}, status=500)
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+
         # Extract book details (this might require parsing the response if it's HTML)
         # assuming we get a JSON response
         # Sample response handling (You may need BeautifulSoup to parse HTML)
@@ -41,6 +47,29 @@ class BookSearchView(APIView):
                 'file_size': book['size'],
                 'file_type': book['type']
             })
+
+
+        try:
+            table = soup.find('table', {'class': 'c'})  # Library Genesis table with class 'c'
+            rows = table.find_all('tr')[1:]  # Skip the header row
+
+            for row in rows:
+                columns = row.find_all('td')
+                if len(columns) > 0:
+                    book_info = {
+                        'id': columns[0].text.strip(),  # Book ID
+                        'author': columns[1].text.strip(),  # Author
+                        'title': columns[2].a.text.strip() if columns[2].a else 'N/A',  # Title
+                        'publisher': columns[3].text.strip(),  # Publisher
+                        'year': columns[4].text.strip(),  # Year
+                        'language': columns[6].text.strip(),  # Language
+                        'file_type': columns[8].text.strip(),  # File type (like EPUB, PDF)
+                        'file_size': columns[7].text.strip(),  # File size
+                        'download_link': columns[9].a['href'] if columns[9].a else None  # Direct download link
+                    }
+                    books.append(book_info)
+        except Exception as e:
+            return Response({'error': f'Error while parsing: {str(e)}'}, status=500)
         
         cache.set(cache_key, books, timeout=3600)  # Cache for 1 hour
 
