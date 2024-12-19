@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import Book
 from bookhub.celery import download_book
+from django.core.cache import cache
 # Use requests to send an HTTP request to Library Genesis.
 # Extract book information (title, author, download link, etc.) from the response.
 # Return the response to the frontend in JSON format.
@@ -16,6 +17,14 @@ class BookSearchView(APIView):
         if not query:
             return Response({'error': 'Search query is required'}, status=400)
         
+        # Check if results are already cached
+        cache_key = f'search_results_{query}'
+        cached_results = cache.get(cache_key)
+        
+        if cached_results:
+            return Response({'results': cached_results}, status=200)
+
+
         url = f'http://libgen.is/search.php?req={query}&open=0&res=100&view=simple&phrase=1&column=def'
         response = requests.get(url)
         
@@ -32,6 +41,8 @@ class BookSearchView(APIView):
                 'file_type': book['type']
             })
         
+        cache.set(cache_key, books, timeout=3600)  # Cache for 1 hour
+
         return Response({'results': books}, status=200)             
     
 
