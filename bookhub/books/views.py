@@ -71,6 +71,10 @@ class BookSearchView(APIView):
         except Exception as e:
             return Response({'error': f'Error while parsing: {str(e)}'}, status=500)
         
+
+# Some rows may have missing elements, so we use .a.text.strip() only if the element exists.
+# If it doesn't exist, we return N/A or None for the download link.
+
         cache.set(cache_key, books, timeout=3600)  # Cache for 1 hour
 
         return Response({'results': books}, status=200)             
