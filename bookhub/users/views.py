@@ -5,6 +5,7 @@ from rest_framework import status, permissions
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import CustomUser
 from .serializers import UserSerializer, LoginSerializer
+from books.models import Book
 
 #register views
 
@@ -42,3 +43,15 @@ class LoginView(APIView):
             
             return Response({'error': "invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+class UserLibraryView(APIView):
+    """View user's personal library of downloaded books."""
+    
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        """List books that belong to the currently authenticated user."""
+        user = request.user
+        books = Book.objects.filter(user=user).values('id', 'title', 'author', 'file_size', 'download_date')
+        return Response({'books': list(books)}, status=status.HTTP_200_OK)
