@@ -8,6 +8,8 @@ from bookhub.celery import download_book
 from django.core.cache import cache
 from bs4 import BeautifulSoup
 from rest_framework import status, permissions
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 # Use requests to send an HTTP request to Library Genesis.
 # Extract book information (title, author, download link, etc.) from the response.
 # Return the response to the frontend in JSON format.
@@ -134,12 +136,12 @@ class BookDownloadView(APIView):
 class BookReadView(APIView):
     """📖 Allows users to read an ePub book in the app"""
 
-    def get(self, request, book_id):
-        book = Book.objects.get(id=book_id, user=request.user)
-        file_path = book.file_path.path
+    permission_classes = [permissions.IsAuthenticated]
 
-        # Read the ePub file and extract text
-        with open(file_path, 'r', encoding='utf-8') as file:
-            content = file.read()
-        
-        return Response({'content': content}, status=200)
+    def get(self, request, book_id):
+        user = request.user
+        book = get_object_or_404(Book, id=book_id, user=user)
+
+        response = HttpResponse(book.content, content_type='application/epub+zip')
+        response['Content-Disposition'] = f'inline; filename="{book.title}.epub"'
+        return response
