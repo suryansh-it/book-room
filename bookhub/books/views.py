@@ -84,10 +84,11 @@ class BookSearchView(APIView):
 class BookDownloadView(APIView):
     """⬇️ Downloads an ePub book from Library Genesis"""
 
-    def post(self, request):
-        download_url = request.data.get('download_url')
-        title = request.data.get('title')
-        author = request.data.get('author')
+    def get(self, request):
+        download_url = request.query_params.get('url','') #to get query parameters for get
+        title = request.query_params.get('title','')
+        author = request.query_params.get('author','')
+
         
         if not download_url or not title or not author:
             return Response({'error': 'Title, author, and download URL are required'}, status=400)
@@ -96,7 +97,7 @@ class BookDownloadView(APIView):
 
 
         # Save file locally
-        file_path = f'media/books/epub/{title}.epub'
+        file_path = f'media/books/{title}.epub'
         download_book.delay(download_url,file_path)
         
         # Save metadata to the database

@@ -9,9 +9,16 @@ from django.conf import settings
 
 
 class Book(models.Model):
-    """📚 Model for storing downloaded book information"""
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    """Model to store book details and the binary file in the database."""
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="books")
     title = models.CharField(max_length=255)
     author = models.CharField(max_length=255)
-    file_path = models.FileField(upload_to='books/epub/')
-    created_at = models.DateTimeField(auto_now_add=True)
+    publisher = models.CharField(max_length=255, null=True, blank=True)
+    year = models.CharField(max_length=4, null=True, blank=True)
+    file_type = models.CharField(max_length=10, default='EPUB')
+    content = models.BinaryField()  # Binary field to store the file content
+    file_size = models.CharField(max_length=50, null=True, blank=True)
+    download_date = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'{self.title} by {self.author}'
