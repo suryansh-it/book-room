@@ -3,9 +3,11 @@ import requests
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import Book
+from users.models import  CustomUser
 from bookhub.celery import download_book
 from django.core.cache import cache
 from bs4 import BeautifulSoup
+from rest_framework import status, permissions
 # Use requests to send an HTTP request to Library Genesis.
 # Extract book information (title, author, download link, etc.) from the response.
 # Return the response to the frontend in JSON format.
@@ -84,7 +86,10 @@ class BookSearchView(APIView):
 class BookDownloadView(APIView):
     """⬇️ Downloads an ePub book from Library Genesis"""
 
+    permission_classes = [permissions.IsAuthenticated]
+
     def get(self, request):
+        user= request.user  # Get the logged-in user
         download_url = request.query_params.get('url','') #to get query parameters for get
         title = request.query_params.get('title','')
         author = request.query_params.get('author','')
@@ -93,23 +98,32 @@ class BookDownloadView(APIView):
         if not download_url or not title or not author:
             return Response({'error': 'Title, author, and download URL are required'}, status=400)
         
-        response = requests.get(download_url, stream=True)
+        try:
+            response = requests.get(download_url, stream=True)
+            if response.status_code != 200:
+                return Response({'error': 'Failed to download book from the provided URL'}, status=500)
 
+            # Read binary content from the downloaded file
+            file_content = response.content
+            file_size = len(file_content)  # Get size of the file in bytes
+            file_type = 'epub'  # Assuming ePub format for now
 
-        # Save file locally
-        file_path = f'media/books/{title}.epub'
-        download_book.delay(download_url,file_path)
-        
-        # Save metadata to the database
-        book = Book.objects.create(
-            user=request.user,
-            title=title,
-            author=author,
-            file_path=file_path
-        )
-        
-        return Response({'message': 'Book downloaded successfully', 'book_id': book.id}, status=201)
+            # Save metadata and file binary content to the database
+            book = Book.objects.create(
+                user=user,
+                title=title,
+                author=author,
+                file=file_content,
+                file_type=file_type,
+                file_size=f'{file_size / 1024:.2f} KB'  # Convert bytes to KB
+            )
 
+            download_book.delay(download_url)  # If any further async operations are needed
+
+            return Response({'message': 'Book downloaded successfully', 'book_id': book.id}, status=201)
+
+        except Exception as e:
+            return Response({'error': f'An error occurred while downloading the book: {str(e)}'}, status=500)
 
 
 # ePub Parser: Use python-epub-reader to parse and render ePub files.

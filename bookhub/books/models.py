@@ -1,6 +1,6 @@
 from django.db import models
 from django.conf import settings
-
+from users.models import CustomUser
 
 # Download the book from Library Genesis using requests.
 # Save the file to the local storage system (media/ folder) using Django’s FileField.
@@ -16,7 +16,7 @@ class Book(models.Model):
     publisher = models.CharField(max_length=255, null=True, blank=True)
     year = models.CharField(max_length=4, null=True, blank=True)
     file_type = models.CharField(max_length=10, default='EPUB')
-    content = models.BinaryField()  # Binary field to store the file content
+    content = models.BinaryField(null=True, blank=True))  # Binary field to store the file content
     file_size = models.CharField(max_length=50, null=True, blank=True)
     download_date = models.DateTimeField(auto_now_add=True)
 
