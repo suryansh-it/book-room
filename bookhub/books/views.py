@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 from rest_framework import status, permissions
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
-from .extract import extract_epub
+from .utils import save_chapters_to_db
 # Use requests to send an HTTP request to Library Genesis.
 # Extract book information (title, author, download link, etc.) from the response.
 # Return the response to the frontend in JSON format.
@@ -135,31 +135,56 @@ class BookDownloadView(APIView):
 
 
 class BookReadView(APIView):
-    """📖 Allows users to read an ePub book in the app"""
-    """Retrieve book content with pagination."""
-
+    """📖 Allows users to read an ePub book with lazy loading and pagination."""
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, book_id):
         user = request.user
+        # Fetch the book and ensure it's owned by the logged-in user
         book = get_object_or_404(Book, id=book_id, user=user)
 
-        # Extract the book content (chapters/sections) from binary data
-        content = extract_epub(book.content)
+        # If chapters aren't already extracted, extract and save them
+        if not book.chapters.exists():
+            save_chapters_to_db(book)
 
-        # Pagination - Default page is 1, page size is 1 (can be adjusted)
-        page = int(request.GET.get('page',1))
-        page_size = int(request.GET.get('page_size',1))
-
-        # Start and end indices for the content
-        start = (page-1)*page_size
-        end= start + page_size
-        content_chunk = content[start:end]
-
-        # Return the chunk of content
-        return Response({'book_id': book.id,'content': content_chunk, 'page': page,}, status=200)
+        # Chapter-level pagination
+        chapter_page = int(request.GET.get('chapter', 1))
+        chapters_per_page = int(request.GET.get('chapters_per_page', 1))
 
 
+        # Retrieve chapters based on pagination
+        total_chapters = book.chapters.count()
+        start_index = (chapter_page - 1) * chapters_per_page
+        end_index = start_index + chapters_per_page
+        chapter_queryset = book.chapters.all()[start_index:end_index]
+
+        chapter_list=[]
+        for chapter in chapter_queryset:
+            # Lazy loading within a chapter
+            section_page = int(request.GET.get('section', 1))
+            section_size = int(request.GET.get('section_size', 500))  # Number of characters per section
+            chapter_content = chapter.content
+
+            # Calculate start and end indices for the section
+            start = (section_page - 1) * section_size
+            end = start + section_size
+            section_content = chapter_content[start:end]
+
+            chapter_list.append({
+                "chapter_title": chapter.title,
+                "section_content": section_content,
+                "total_sections": (len(chapter_content) + section_size - 1) // section_size,  # Total sections in the chapter
+            })
 
 
-    
+        # Prepare the response
+        response_data = {
+            "book_title": book.title,
+            "total_chapters": total_chapters,
+            "current_chapter_page": chapter_page,
+            "chapters": chapter_list,
+            "total_chapter_pages": (total_chapters + chapters_per_page - 1) // chapters_per_page,
+        }
+        return Response(response_data, status=200)
+
+        
