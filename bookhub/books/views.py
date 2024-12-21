@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from rest_framework import status, permissions
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+from .extract import extract_epub
 # Use requests to send an HTTP request to Library Genesis.
 # Extract book information (title, author, download link, etc.) from the response.
 # Return the response to the frontend in JSON format.
@@ -135,6 +136,7 @@ class BookDownloadView(APIView):
 
 class BookReadView(APIView):
     """📖 Allows users to read an ePub book in the app"""
+    """Retrieve book content with pagination."""
 
     permission_classes = [permissions.IsAuthenticated]
 
@@ -142,6 +144,22 @@ class BookReadView(APIView):
         user = request.user
         book = get_object_or_404(Book, id=book_id, user=user)
 
-        response = HttpResponse(book.content, content_type='application/epub+zip')
-        response['Content-Disposition'] = f'inline; filename="{book.title}.epub"'
-        return response
+        # Extract the book content (chapters/sections) from binary data
+        content = extract_epub(book.content)
+
+        # Pagination - Default page is 1, page size is 1 (can be adjusted)
+        page = int(request.GET.get('page',1))
+        page_size = int(request.GET.get('page_size',1))
+
+        # Start and end indices for the content
+        start = (page-1)*page_size
+        end= start + page_size
+        content_chunk = content[start:end]
+
+        # Return the chunk of content
+        return Response({'book_id': book.id,'content': content_chunk, 'page': page,}, status=200)
+
+
+
+
+    
