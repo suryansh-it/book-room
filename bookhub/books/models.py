@@ -20,5 +20,14 @@ class Book(models.Model):
     file_size = models.CharField(max_length=50, null=True, blank=True)
     download_date = models.DateTimeField(auto_now_add=True)
 
+
+class Chapter(models.Model):
+    book = models.ForeignKey(Book, related_name="chapters", on_delete=models.CASCADE)
+    title = models.CharField(max_length=255)
+    content = models.TextField()  # The raw text of the chapter
+    chapter_number = models.IntegerField()
+
+
     def __str__(self):
         return f'{self.title} by {self.author}'
+    
