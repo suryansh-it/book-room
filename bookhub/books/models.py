@@ -27,6 +27,10 @@ class Chapter(models.Model):
     content = models.TextField()  # The raw text of the chapter
     chapter_number = models.IntegerField()
 
+    class Meta:
+        ordering = ['order']  # Ensures chapters are retrieved in the correct order
+
+    
 
     def __str__(self):
         return f'{self.title} by {self.author}'
