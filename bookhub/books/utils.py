@@ -68,7 +68,7 @@ def save_chapters_to_db(book_instance):
                 book=book_instance,
                 title=chapter["title"],
                 content=chapter["content"],
-                order=index
+                order=index   # Assign sequential order
             )
     except Exception as e:
         print(f"Error extracting chapters: {e}")

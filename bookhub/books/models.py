@@ -26,12 +26,13 @@ class Chapter(models.Model):
     title = models.CharField(max_length=255)
     content = models.TextField()  # The raw text of the chapter
     chapter_number = models.IntegerField()
+    order = models.PositiveIntegerField(default=0)  # Field for ordering chapters
 
     class Meta:
         ordering = ['order']  # Ensures chapters are retrieved in the correct order
+        unique_together = ('book', 'order')  # Ensure unique ordering within a book
 
     
-
     def __str__(self):
         return f'{self.title} by {self.author}'
     

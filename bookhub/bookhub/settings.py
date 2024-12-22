@@ -169,3 +169,7 @@ CELERY_TASK_SERIALIZER = 'json'
 
 # CORS Settings
 CORS_ALLOW_ALL_ORIGINS = True  # For development only, restrict for production
+
+# settings.py
+RAZORPAY_KEY_ID = "your_razorpay_key_id"
+RAZORPAY_KEY_SECRET = "your_razorpay_key_secret"
