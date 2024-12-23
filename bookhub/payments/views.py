@@ -42,3 +42,37 @@ class RazorpayDonationView(APIView):
 
         except Exception as e:
             return Response({'error':str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+class RazorpayPaymentVerificationView(APIView):
+    def post(self,request):
+        data = request.data
+        donation_id = data.get('donation_id')
+        razorpay_payment_id = data.get('razorpay_payment_id')
+        razorpay_order_id = data.get('razorpay_order_id')
+        razorpay_signature = data.get('razorpay_signature')
+
+        donation= get_object_or_404(Donation, id=donation_id, razorpay_order_id=razorpay_order_id)
+
+        client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+        params_dict = {
+            'razorpay_order_id': razorpay_order_id,
+            'razorpay_payment_id': razorpay_payment_id,
+            'razorpay_signature': razorpay_signature
+        }
+
+        try:
+            # Verify payment signature
+            client.utility.verify_payment_signature(params_dict)
+            donation.status = 'SUCCESS'
+            donation.razorpay_payment_id= razorpay_payment_id
+            donation.razorpay_signature=razorpay_signature
+            donation.save()
+
+            return Response({'message': 'Payment verified successfully'}, status=status.HTTP_200_OK)
+        
+        except razorpay.errors.SignatureVerificationError:
+            donation.status = 'FAILED'
+            donation.save()
+            return Response({'error': 'Payment verification failed'}, status=status.HTTP_400_BAD_REQUEST)
