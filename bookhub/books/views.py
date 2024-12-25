@@ -125,6 +125,7 @@ class BookDownloadView(APIView):
             # Save book locally in a dedicated folder
             local_path = os.path.join(settings.MEDIA_ROOT, 'offline_books', f'{book.id}.epub')
             os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            # saves the downloaded book as a local file in a designated folder (offline_books) under MEDIA_ROOT.
 
             with open(local_path, 'wb') as f:
                 f.write(file_content)
@@ -222,3 +223,4 @@ class BookDeleteView(APIView):
         
         except Exception as e:
             return Response({'error':f"An error ocurred while deleting the book:{str(e)}"},status=500)
+        

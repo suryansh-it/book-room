@@ -18,8 +18,8 @@ class Book(models.Model):
     file_type = models.CharField(max_length=10, default='EPUB')
     content = models.BinaryField(null=True, blank=True)  # Binary field to store the file content
     file_size = models.CharField(max_length=50, null=True, blank=True)
-    is_downloaded = models.BooleanField(default=False)
     download_date = models.DateTimeField(auto_now_add=True)
+    local_path = models.CharField(max_length=500, blank=True, null=True)  # Path for offline storage
 
 
 class Chapter(models.Model):
