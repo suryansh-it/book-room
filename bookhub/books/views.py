@@ -200,3 +200,25 @@ class BookReadView(APIView):
         return Response(response_data, status=200)
 
         
+
+class BookDeleteView(APIView):
+    """ Deletes a downloaded book"""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self,request,book_id):
+        user= request.user
+        book= get_object_or_404(Book,id=book_id,user=user)
+
+        try:
+            #delete local file if it exists
+            if book.local_path and os.path.exists(book.local_path):
+                os.remove(book.local_path)
+
+            #delete book record from db
+            book.delete()
+
+            return Response({'message': 'Book deleted successfully'},status=200)
+        
+        except Exception as e:
+            return Response({'error':f"An error ocurred while deleting the book:{str(e)}"},status=500)
