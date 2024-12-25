@@ -167,8 +167,16 @@ class BookReadView(APIView):
 
         # Retrieve chapters based on pagination
         total_chapters = book.chapters.count()
+        if chapter_page < 1 or chapters_per_page < 1:
+            return Response({'error': 'Invalid chapter page or chapters per page value.'}, status=400)
+
         start_index = (chapter_page - 1) * chapters_per_page
         end_index = start_index + chapters_per_page
+
+        # Handle out-of-bounds indices
+        if start_index >= total_chapters:
+            return Response({'error': 'Chapter page out of range.'}, status=404)
+
         chapter_queryset = book.chapters.all()[start_index:end_index]
 
         chapter_list=[]
@@ -187,6 +195,7 @@ class BookReadView(APIView):
                 "chapter_title": chapter.title,
                 "section_content": section_content,
                 "total_sections": (len(chapter_content) + section_size - 1) // section_size,  # Total sections in the chapter
+                "current_section_page": section_page,
             })
 
 
