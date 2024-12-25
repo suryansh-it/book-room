@@ -1,5 +1,5 @@
 from django.shortcuts import render
-import requests
+import requests,os
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import Book
@@ -11,6 +11,7 @@ from rest_framework import status, permissions
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from .utils import save_chapters_to_db
+from django.conf import settings
 # Use requests to send an HTTP request to Library Genesis.
 # Extract book information (title, author, download link, etc.) from the response.
 # Return the response to the frontend in JSON format.
@@ -120,6 +121,17 @@ class BookDownloadView(APIView):
                 file_type=file_type,
                 file_size=f'{file_size / 1024:.2f} KB'  # Convert bytes to KB
             )
+
+            # Save book locally in a dedicated folder
+            local_path = os.path.join(settings.MEDIA_ROOT, 'offline_books', f'{book.id}.epub')
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+
+            with open(local_path, 'wb') as f:
+                f.write(file_content)
+
+            # Update the book object with the local path
+            book.local_path = local_path
+            book.save()
 
             download_book.delay(download_url)  # If any further async operations are needed
 
