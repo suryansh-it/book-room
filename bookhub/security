@@ -1,5 +1,6 @@
 from cryptography.fernet import Fernet
 from django.conf import settings
+from django.contrib.auth.hashers import make_password, check_password
 
 cipher_suite = Fernet(settings.ENCRYPTION_KEY.encode())
 
@@ -8,3 +9,14 @@ encrypted_data = cipher_suite.encrypt(b'sensitive_user_data')
 
 # Decrypt data
 decrypted_data = cipher_suite.decrypt(encrypted_data)
+
+
+
+
+# Hash password
+hashed_password = make_password('user_password')
+
+# Verify password
+is_valid = check_password('user_password', hashed_password)
+
+
