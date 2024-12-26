@@ -177,3 +177,6 @@ RAZORPAY_KEY_SECRET = config("razorpay_key_secret")
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
+
+# Load encryption key
+ENCRYPTION_KEY = config("ENCRYPTION_KEY")
