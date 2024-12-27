@@ -58,3 +58,5 @@
     User Authentication & Roles
     Social Login (Google, Facebook, etc.).
     Two-Factor Authentication (2FA).
+
+# to-do : documentation for API endpoints
