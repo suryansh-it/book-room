@@ -8,7 +8,6 @@ void main() {
 }
 
 class BookApp extends StatelessWidget {
-  const BookApp({super.key});
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -18,9 +17,9 @@ class BookApp extends StatelessWidget {
         primarySwatch: Colors.blue,
       ),
       // Define routes for navigation
-      initialRoute: '/',
+      initialRoute: '/login', // Start with the login screen
       routes: {
-        '/': (context) => HomeScreen(),
+        '/home': (context) => HomeScreen(),
         '/login': (context) => LoginScreen(),
         '/signup': (context) => SignupScreen(),
       },
