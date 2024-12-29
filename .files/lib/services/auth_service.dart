@@ -3,7 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthService {
-  final Dio _dio = Dio(BaseOptions(baseUrl: "http://127.0.0.1:8011/api"));
+  final Dio _dio = Dio(BaseOptions(baseUrl: "http://your-backend-url/api"));
   final FlutterSecureStorage _storage = FlutterSecureStorage();
 
   Future<Map<String, dynamic>> login(String email, String password) async {
