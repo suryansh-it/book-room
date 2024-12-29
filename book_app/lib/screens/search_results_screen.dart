@@ -8,8 +8,8 @@ class SearchResultsScreen extends StatelessWidget {
   final String query; // Search query from the home screen
   final BookService _bookService = BookService(); // Instance of BookService
 
-  // Constructor to accept search query
-  SearchResultsScreen({required this.query});
+  // Constructor to accept search query and key
+  SearchResultsScreen({super.key, required this.query});
 
   // Method to fetch books using the query
   Future<List<Book>> _fetchBooks() {
