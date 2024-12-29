@@ -14,15 +14,23 @@ class LoginScreenState extends State<LoginScreen> {
 
   void _login() async {
     try {
+      // Call the login method from AuthProvider
       await Provider.of<AuthProvider>(context, listen: false).login(
         _emailController.text,
         _passwordController.text,
       );
-      Navigator.pushReplacementNamed(context, '/home'); // Navigate to home
+
+      // Check if the widget is still mounted
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/home'); // Navigate to home
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Login failed')),
-      );
+      // Check if the widget is still mounted
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Login failed')),
+        );
+      }
     }
   }
 
