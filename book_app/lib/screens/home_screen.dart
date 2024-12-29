@@ -1,48 +1,34 @@
-import 'package:flutter/material.dart'; // Core Flutter package for UI design
-import 'search_results_screen.dart'; // Import search results screen
+import 'package:flutter/material.dart';
 
-// Main Home Screen widget
 class HomeScreen extends StatelessWidget {
-  HomeScreen({super.key});
-
-  // TextEditingController to capture the search input
-  final TextEditingController _searchController = TextEditingController();
-
-  // Method to navigate to Search Results Screen
-  void _searchBooks(BuildContext context) {
-    final query = _searchController.text; // Retrieve text from the controller
-    if (query.isNotEmpty) {
-      // Navigate to SearchResultsScreen and pass the search query
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => SearchResultsScreen(query: query)),
-      );
-    }
-  }
-
+  const HomeScreen({super.key});
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Welcome to the Book App'), // App bar title
+        title: Text('Welcome to Book App'),
       ),
-      body: Padding(
-        padding: EdgeInsets.all(16.0), // Add padding around the content
+      body: Center(
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            TextField(
-              controller: _searchController, // Attach controller for input
-              decoration: InputDecoration(
-                labelText: 'Search for books', // Placeholder text
-                border:
-                    OutlineInputBorder(), // Add a border around the text field
-              ),
+            Text(
+              'Welcome!',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 20), // Add vertical spacing
+            SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () =>
-                  _searchBooks(context), // Trigger search on button press
-              child: Text('Search'), // Button text
+              onPressed: () {
+                Navigator.pushNamed(context, '/login');
+              },
+              child: Text('Login'),
+            ),
+            SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pushNamed(context, '/signup');
+              },
+              child: Text('Signup'),
             ),
           ],
         ),
