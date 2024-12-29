@@ -6,7 +6,7 @@ class BookCard extends StatelessWidget {
   final Book book; // Book data for the card
 
   // Constructor to accept Book object
-  BookCard({required this.book});
+  const BookCard({super.key, required this.book});
 
   @override
   Widget build(BuildContext context) {
