@@ -4,6 +4,7 @@ import '../../providers/auth_provider.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
+
   @override
   SignupScreenState createState() => SignupScreenState();
 }
@@ -14,21 +15,18 @@ class SignupScreenState extends State<SignupScreen> {
 
   void _signup() async {
     try {
-      // Call the signup method from AuthProvider
       await Provider.of<AuthProvider>(context, listen: false).signup(
         _emailController.text,
         _passwordController.text,
       );
 
-      // Check if the widget is still mounted
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Signup successful')),
         );
-        Navigator.pop(context);
+        Navigator.pushReplacementNamed(context, '/login');
       }
     } catch (e) {
-      // Check if the widget is still mounted
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Signup failed')),
@@ -58,6 +56,12 @@ class SignupScreenState extends State<SignupScreen> {
             ElevatedButton(
               onPressed: _signup,
               child: Text('Signup'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pushReplacementNamed(context, '/login');
+              },
+              child: Text('Already have an account? Login'),
             ),
           ],
         ),
