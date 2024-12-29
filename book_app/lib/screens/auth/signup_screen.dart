@@ -1,30 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '/providers/auth_provider.dart';
+import '../../providers/auth_provider.dart';
 
 class SignupScreen extends StatefulWidget {
+  const SignupScreen({super.key});
   @override
-  _SignupScreenState createState() => _SignupScreenState();
+  SignupScreenState createState() => SignupScreenState();
 }
 
-class _SignupScreenState extends State<SignupScreen> {
+class SignupScreenState extends State<SignupScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
   void _signup() async {
     try {
+      // Call the signup method from AuthProvider
       await Provider.of<AuthProvider>(context, listen: false).signup(
         _emailController.text,
         _passwordController.text,
       );
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Signup successful')),
-      );
-      Navigator.pop(context);
+
+      // Check if the widget is still mounted
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Signup successful')),
+        );
+        Navigator.pop(context);
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Signup failed')),
-      );
+      // Check if the widget is still mounted
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Signup failed')),
+        );
+      }
     }
   }
 

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart'; // Core Flutter package for UI design
-import './search_results_screen.dart'; // Import search results screen
+import 'search_results_screen.dart'; // Import search results screen
 
 // Main Home Screen widget
 class HomeScreen extends StatelessWidget {
+  HomeScreen({super.key});
+
   // TextEditingController to capture the search input
   final TextEditingController _searchController = TextEditingController();
 
