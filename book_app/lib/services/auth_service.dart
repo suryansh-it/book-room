@@ -16,7 +16,7 @@ class AuthService {
       await _storage.write(key: 'token', value: response.data['access']);
       return response.data;
     } catch (e) {
-      throw Exception("Login failed");
+      throw Exception("Login failed: ${e.toString()}");
     }
   }
 

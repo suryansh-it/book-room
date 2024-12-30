@@ -19,7 +19,7 @@ class BookService {
           .toList();
     } catch (e) {
       // Handle errors gracefully
-      throw Exception("Failed to fetch books");
+      throw Exception("Failed to fetch books: ${e.toString()}");
     }
   }
 }
