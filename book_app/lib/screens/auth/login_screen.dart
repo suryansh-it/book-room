@@ -14,19 +14,21 @@ class LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
 
   void _login() async {
+    // Call the login method from AuthProvider
     try {
       await Provider.of<AuthProvider>(context, listen: false).login(
         _emailController.text,
         _passwordController.text,
       );
 
+      // Navigate to the home screen if successful
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/home');
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Login failed')),
+          SnackBar(content: Text('Login failed: ${e.toString()}')),
         );
       }
     }

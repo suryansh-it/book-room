@@ -1,3 +1,4 @@
+// SignupScreen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
@@ -21,15 +22,12 @@ class SignupScreenState extends State<SignupScreen> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Signup successful')),
-        );
         Navigator.pushReplacementNamed(context, '/login');
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Signup failed')),
+          SnackBar(content: Text('Signup failed: ${e.toString()}')),
         );
       }
     }
@@ -56,12 +54,6 @@ class SignupScreenState extends State<SignupScreen> {
             ElevatedButton(
               onPressed: _signup,
               child: Text('Signup'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pushReplacementNamed(context, '/login');
-              },
-              child: Text('Already have an account? Login'),
             ),
           ],
         ),
