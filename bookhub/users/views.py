@@ -10,14 +10,31 @@ from books.models import Book
 #register views
 
 class RegisterView(APIView):
-    def post(self,request):
+    """
+    Handles user registration via POST request.
+    """
+    def post(self, request):
         # Deserialize the request data using UserSerializer
-        serializer= UserSerializer(data= request.data)
+        serializer = UserSerializer(data=request.data)
+        
         if serializer.is_valid():
-            user = serializer.save()
-            return Response({'message': "user registered successfully"}, status = status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)   
-    
+            try:
+                user = serializer.save()
+                return Response(
+                    {'message': "User registered successfully", 'user_id': user.id},
+                    status=status.HTTP_201_CREATED
+                )
+            except Exception as e:
+                return Response(
+                    {'error': f"An error occurred during user creation: {str(e)}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        
+        return Response(
+            {'error': 'Invalid data', 'details': serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
 
 # Login View
 class LoginView(APIView):

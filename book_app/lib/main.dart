@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '/providers/auth_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
 
 void main() {
-  runApp(BookApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+      ],
+      child: BookApp(),
+    ),
+  );
 }
 
 class BookApp extends StatelessWidget {
