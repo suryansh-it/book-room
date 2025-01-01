@@ -10,13 +10,13 @@ class AuthService {
   // Login method
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
-      final response = await _dio.post('/token/', data: {
+      final response = await _dio.post('login/', data: {
         'email': email,
         'password': password,
       });
 
-      // Save token securely
-      await _storage.write(key: 'token', value: response.data['access']);
+      // Save login securely
+      await _storage.write(key: 'login', value: response.data['access']);
       return response.data;
     } catch (e) {
       if (e is DioException) {
@@ -53,11 +53,11 @@ class AuthService {
 
   // Logout method
   Future<void> logout() async {
-    await _storage.delete(key: 'token');
+    await _storage.delete(key: 'login');
   }
 
-  // Get token from storage
-  Future<String?> getToken() async {
-    return await _storage.read(key: 'token');
+  // Get login from storage
+  Future<String?> getlogin() async {
+    return await _storage.read(key: 'login');
   }
 }
