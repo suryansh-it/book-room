@@ -21,7 +21,7 @@ class RegisterView(APIView):
             try:
                 user = serializer.save()
                 return Response(
-                    {'message': "User registered successfully", 'user_id': user.id},
+                    {'message': "User registered successfully","user_id": int(user.id)},
                     status=status.HTTP_201_CREATED
                 )
             except Exception as e:

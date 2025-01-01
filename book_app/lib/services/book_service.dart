@@ -5,7 +5,7 @@ import '../models/book.dart'; // Import Book model
 // Service class to handle book-related API calls
 class BookService {
   // Initialize Dio with base URL for backend API
-  final Dio _dio = Dio(BaseOptions(baseUrl: "http://127.0.0.1:8011/api/books"));
+  final Dio _dio = Dio(BaseOptions(baseUrl: "http:/10.0.2.2:8011/api/books"));
 
   // Method to search books by a query
   Future<List<Book>> searchBooks(String query) async {

@@ -27,7 +27,8 @@ SECRET_KEY = 'django-insecure-cx=vc-=hx(8hz*+o-xo@ttq-r04s*0q^owkir0!0-=*%xixi!a
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['127.0.0.1', '10.0.2.2', '192.168.x.x']  # Add your machine's IP if necessary
+
 
 
 # Application definition
@@ -190,7 +191,7 @@ MEDIA_URL = '/media/'
 ENCRYPTION_KEY = config("ENCRYPTION_KEY")
 
 
-SECURE_SSL_REDIRECT = True
+SECURE_SSL_REDIRECT = False
 SECURE_HSTS_SECONDS = 3600
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
@@ -198,3 +199,7 @@ SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
+
+
+# APPEND_SLASH = False
+

@@ -22,6 +22,9 @@ class SignupScreenState extends State<SignupScreen> {
       );
 
       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Signup successful!')),
+        );
         Navigator.pushReplacementNamed(context, '/login');
       }
     } catch (e) {

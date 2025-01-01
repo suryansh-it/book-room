@@ -3,16 +3,18 @@ import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthService {
-  final Dio _dio = Dio(BaseOptions(baseUrl: "http://10.0.2.2:8011/api/users"));
+  final Dio _dio = Dio(BaseOptions(baseUrl: "http://10.0.2.2:8011/api/users/"));
   // Flutter apps running on emulators use 10.0.2.2 to connect to the local development server.
   final FlutterSecureStorage _storage = FlutterSecureStorage();
 
+  // Login method
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
       final response = await _dio.post('/token/', data: {
         'email': email,
         'password': password,
       });
+
       // Save token securely
       await _storage.write(key: 'token', value: response.data['access']);
       return response.data;
@@ -25,27 +27,36 @@ class AuthService {
     }
   }
 
-  Future<void> signup(String email, String password) async {
+  // Signup method
+  Future<void> signup(String email, password) async {
     try {
-      await _dio.post('/signup/', data: {
+      final response = await _dio.post('signup/', data: {
         'email': email.trim(),
         'password': password.trim(),
       });
+
+      if (response.statusCode == 201) {
+        final String message = response.data['message'] ?? "Signup successful";
+        print('Signup successful: $message');
+      } else {
+        print('Unexpected response: ${response.data}');
+        throw Exception("Unexpected response code: ${response.statusCode}");
+      }
     } catch (e) {
       if (e is DioException) {
-        print("DioException: ${e.response?.data}");
         final message = e.response?.data['error'] ?? "An error occurred";
         throw Exception("Signup failed: $message");
       }
-      print("Unexpected error: $e");
       throw Exception("Signup failed");
     }
   }
 
+  // Logout method
   Future<void> logout() async {
     await _storage.delete(key: 'token');
   }
 
+  // Get token from storage
   Future<String?> getToken() async {
     return await _storage.read(key: 'token');
   }
