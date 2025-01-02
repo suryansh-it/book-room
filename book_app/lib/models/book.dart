@@ -1,25 +1,34 @@
-// Model to map book data from the API
 class Book {
-  final int id; // Unique identifier for the book
-  final String title; // Title of the book
-  final String author; // Author of the book
-  final String description; // Short description or synopsis of the book
+  final int id;
+  final String title;
+  final String author;
+  final String? publisher;
+  final int? year;
+  final String fileType;
+  final String fileSize;
+  final String? downloadLink;
 
-  // Constructor to initialize Book object
-  Book(
-      {required this.id,
-      required this.title,
-      required this.author,
-      required this.description});
+  Book({
+    required this.id,
+    required this.title,
+    required this.author,
+    this.publisher,
+    this.year,
+    required this.fileType,
+    required this.fileSize,
+    this.downloadLink,
+  });
 
-  // Factory method to create a Book object from a JSON response
   factory Book.fromJson(Map<String, dynamic> json) {
     return Book(
-      id: json['id'], // Map 'id' from JSON to id
-      title: json['title'], // Map 'title' from JSON to title
-      author: json['author'], // Map 'author' from JSON to author
-      description:
-          json['description'], // Map 'description' from JSON to description
+      id: json['id'] as int,
+      title: json['title'] as String,
+      author: json['author'] as String,
+      publisher: json['publisher'] as String?,
+      year: json['year'] as int?,
+      fileType: json['file_type'] as String,
+      fileSize: json['file_size'] as String,
+      downloadLink: json['download_link'] as String?,
     );
   }
 }

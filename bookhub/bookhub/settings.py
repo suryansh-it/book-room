@@ -144,10 +144,10 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle',
         'rest_framework.throttling.AnonRateThrottle',
     ],
-    'DEFAULT_THROTTLE_RATES': {
-        'user': '100/day',  # 100 requests per day per user
-        'anon': '10/hour',  # 10 requests per hour for anonymous users
-    }
+    # 'DEFAULT_THROTTLE_RATES': {
+    #     'user': '100/day',  # 100 requests per day per user
+    #     'anon': '10/hour',  # 10 requests per hour for anonymous users
+    # }
 }
 
 ASGI_APPLICATION = 'bookhub.asgi.application'

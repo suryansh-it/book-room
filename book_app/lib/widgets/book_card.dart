@@ -17,9 +17,9 @@ class BookCard extends StatelessWidget {
         subtitle: Text('By ${book.author}'), // Display author name
         onTap: () {
           // Show a brief description in a Snackbar when the card is tapped
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(book.description)),
-          );
+          // ScaffoldMessenger.of(context).showSnackBar(
+          //   SnackBar(content: Text(book.description)),
+          // );
         },
       ),
     );
