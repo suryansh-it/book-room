@@ -1,5 +1,5 @@
 from django.shortcuts import render
-import requests,os
+import requests,os,logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import Book
@@ -12,50 +12,73 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from .utils import save_chapters_to_db
 from django.conf import settings
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
 # Use requests to send an HTTP request to Library Genesis.
 # Extract book information (title, author, download link, etc.) from the response.
 # Return the response to the frontend in JSON format.
 
+import logging
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+
+# Configure logging
+logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
+
 class BookSearchView(APIView):
-    """🔍 Allows users to search for books on Library Genesis"""
+    """🔍 Allows users to search for books on Library Genesis with robust error handling"""
+
+    LIBGEN_MIRRORS = [
+        'http://libgen.is',
+        'http://libgen.rs',
+        'http://libgen.li',
+        'http://libgen.st',
+        'http://93.174.95.27',
+    ]
+    TIMEOUT = 10  # Timeout for each request (in seconds)
+    RETRY_COUNT = 3  # Number of retries for each mirror
 
     def get(self, request):
-        query = request.query_params.get('q', '')       # Extract query parameter
+        query = request.query_params.get('q', '')  # Extract query parameter
         if not query:
             return Response({'error': 'Search query is required'}, status=400)
-        
+
         # Check if results are already cached
-        cache_key = f'search_results_{query}'       # Unique cache key for this query
-        cached_results = cache.get(cache_key)       # Check if the data is in the cache
-        
+        cache_key = f'search_results_{query}'  # Unique cache key for this query
+        cached_results = cache.get(cache_key)  # Check if the data is in the cache
+
         if cached_results:
             return Response({'results': cached_results}, status=200)
 
+        books = []  # List to store parsed book details
+        session = requests.Session()
 
-         # Call Library Genesis
-        url = f'http://libgen.is/search.php?req={query}&open=0&res=100&view=simple&phrase=1&column=def'
-        response = requests.get(url)
-        
-        if response.status_code != 200:
-            return Response({'error': 'Failed to fetch data from Library Genesis'}, status=500)
-        
-        soup = BeautifulSoup(response.content, 'html.parser')
+        # Configure retry mechanism
+        retries = Retry(total=self.RETRY_COUNT, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
+        session.mount('http://', HTTPAdapter(max_retries=retries))
 
-        # Extract book details (this might require parsing the response if it's HTML)
-        # assuming we get a JSON response
-        # Sample response handling (You may need BeautifulSoup to parse HTML)
-        books = []  # Placeholder: This would be populated by scraping the website
-        for book in books:
-            books.append({
-                'title': book['title'],
-                'author': book['author'],
-                'download_url': book['download_url'],
-                'file_size': book['size'],
-                'file_type': book['type']
-            })
+        # Try each mirror until one works
+        for mirror in self.LIBGEN_MIRRORS:
+            url = f'{mirror}/search.php?req={query}&open=0&res=100&view=simple&phrase=1&column=def'
+            try:
+                response = session.get(url, timeout=self.TIMEOUT)  # Send request with timeout
+                if response.status_code == 200:
+                    # Successful response
+                    break
+            except requests.RequestException as e:
+                # Log error and continue to the next mirror
+                logging.error(f"Error with mirror {mirror}: {e}")
+                continue
 
+        # If no mirrors worked
+        if not response or response.status_code != 200:
+            logging.error("Failed to fetch data from all Library Genesis mirrors")
+            return Response({'error': 'Failed to fetch data from Library Genesis mirrors'}, status=500)
 
+        # Parse the response
         try:
+            soup = BeautifulSoup(response.content, 'html.parser')
             table = soup.find('table', {'class': 'c'})  # Library Genesis table with class 'c'
             rows = table.find_all('tr')[1:]  # Skip the header row
 
@@ -75,16 +98,15 @@ class BookSearchView(APIView):
                     }
                     books.append(book_info)
         except Exception as e:
-            return Response({'error': f'Error while parsing: {str(e)}'}, status=500)
-        
+            # Log parsing errors and return gracefully
+            logging.error(f"Error while parsing response: {e}")
+            return Response({'error': f'Error while parsing response: {str(e)}'}, status=500)
 
-# Some rows may have missing elements, so we use .a.text.strip() only if the element exists.
-# If it doesn't exist, we return N/A or None for the download link.
+        # Cache the results for 1 hour
+        cache.set(cache_key, books, timeout=3600)
 
-        cache.set(cache_key, books, timeout=3600)  # Cache for 1 hour
+        return Response({'results': books}, status=200)
 
-        return Response({'results': books}, status=200)             
-    
 
 
 class BookDownloadView(APIView):
