@@ -6,10 +6,12 @@ class EpubService {
   final AuthService _authService = AuthService(); // Use AuthService instance
 
   // Method to download ePub file
-  Future<String> downloadEpub(String downloadUrl, String savePath) async {
+  Future<String> downloadEpub(String downloadUrl, String savePath, String email,
+      String password) async {
     try {
-      // Retrieve token using AuthService
-      final token = await _authService.getlogin();
+      // Retrieve token using AuthService, either from storage or by login
+      final token = await _authService.getToken(email,
+          password); // Pass email and password to get the token dynamically
       if (token == null) {
         throw Exception("Authentication token not found. Please log in.");
       }

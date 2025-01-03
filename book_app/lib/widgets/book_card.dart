@@ -16,8 +16,9 @@ class BookCard extends StatelessWidget {
       final directory = await getApplicationDocumentsDirectory();
       final savePath = '${directory.path}/${book.title}.epub';
 
-      // Trigger download
-      await epubService.downloadEpub(book.downloadLink!, savePath);
+      // Trigger download using EpubService
+      await epubService.downloadEpub(
+          book.downloadLink!, savePath, "user@example.com", "password123");
 
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
