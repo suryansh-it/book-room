@@ -56,8 +56,19 @@ class AuthService {
     await _storage.delete(key: 'login');
   }
 
-  // Get login from storage
+  // Method to get the login token from secure storage
   Future<String?> getlogin() async {
-    return await _storage.read(key: 'login');
+    try {
+      final token = await _storage.read(key: 'login');
+      if (token != null) {
+        print("Token retrieved successfully");
+      } else {
+        print("No token found");
+      }
+      return token;
+    } catch (e) {
+      print("Error retrieving token: $e");
+      return null;
+    }
   }
 }

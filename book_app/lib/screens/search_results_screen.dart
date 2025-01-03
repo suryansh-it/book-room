@@ -1,17 +1,15 @@
-import 'package:flutter/material.dart'; // Core Flutter package for UI design
-import '../services/book_service.dart'; // Import BookService for API calls
-import '../models/book.dart'; // Import Book model
-import '../widgets/book_card.dart'; // Import BookCard widget
+import 'package:flutter/material.dart'; // Flutter package for UI design
+import '../services/book_service.dart'; // BookService for API calls
+import '../models/book.dart'; // Book model for handling data
+import '../widgets/book_card.dart'; // BookCard widget for displaying book details
 
-// Screen to display search results
 class SearchResultsScreen extends StatelessWidget {
   final String query; // Search query from the home screen
   final BookService _bookService = BookService(); // Instance of BookService
 
-  // Constructor to accept search query and key
-  SearchResultsScreen({super.key, required this.query});
+  SearchResultsScreen({super.key, required this.query}); // Constructor
 
-  // Method to fetch books using the query
+  // Method to fetch books using the search query
   Future<List<Book>> _fetchBooks() {
     return _bookService.searchBooks(query);
   }
@@ -20,22 +18,19 @@ class SearchResultsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Search Results'), // App bar title
+        title: Text('Search Results'), // AppBar title
       ),
       body: FutureBuilder<List<Book>>(
         future: _fetchBooks(), // Fetch books asynchronously
         builder: (context, snapshot) {
-          // Show loading spinner while waiting for data
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
-          }
-          // Handle errors during API call
-          else if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          // Handle case where no results are found
-          else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(child: Text('No results found'));
+            return Center(
+                child: CircularProgressIndicator()); // Loading indicator
+          } else if (snapshot.hasError) {
+            return Center(
+                child: Text('Error: ${snapshot.error}')); // Error handling
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return Center(child: Text('No results found')); // No data case
           }
 
           // Render the list of books when data is available
@@ -44,7 +39,7 @@ class SearchResultsScreen extends StatelessWidget {
             itemCount: books.length, // Number of items in the list
             itemBuilder: (context, index) {
               return BookCard(
-                  book: books[index]); // Create a BookCard for each book
+                  book: books[index]); // Display book details in a card
             },
           );
         },
