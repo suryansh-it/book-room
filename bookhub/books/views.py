@@ -19,9 +19,6 @@ from urllib3.util.retry import Retry
 # Extract book information (title, author, download link, etc.) from the response.
 # Return the response to the frontend in JSON format.
 
-import logging
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
 
 # Configure logging
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
