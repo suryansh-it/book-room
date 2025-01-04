@@ -16,7 +16,7 @@ class Book(models.Model):
     publisher = models.CharField(max_length=255, null=True, blank=True)
     year = models.CharField(max_length=4, null=True, blank=True)
     file_type = models.CharField(max_length=10, default='EPUB')
-    content = models.BinaryField(null=True, blank=True)  # Binary field to store the file content
+    content = models.CharField(null=True, blank=True)  # Binary field to store the file content
     file_size = models.CharField(max_length=50, null=True, blank=True)
     download_date = models.DateTimeField(auto_now_add=True)
     local_path = models.CharField(max_length=500, blank=True, null=True)  # Path for offline storage

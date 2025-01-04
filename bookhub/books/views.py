@@ -104,62 +104,58 @@ class BookSearchView(APIView):
 
         return Response({'results': books}, status=200)
 
-
+logger = logging.getLogger(__name__)
 
 class BookDownloadView(APIView):
     """⬇️ Downloads an ePub book from Library Genesis"""
 
-    permission_classes = [permissions.IsAuthenticated]
+    # permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        user= request.user  # Get the logged-in user
-        download_url = request.query_params.get('url','') #to get query parameters for get
-        title = request.query_params.get('title','')
-        author = request.query_params.get('author','')
+        user = request.user
+        download_url = request.query_params.get('url', '').strip()
+        title = request.query_params.get('title', '').strip()
+        author = request.query_params.get('author', '').strip()
 
-        
         if not download_url or not title or not author:
             return Response({'error': 'Title, author, and download URL are required'}, status=400)
-        
+
         try:
-            response = requests.get(download_url, stream=True)
+            response = requests.get(download_url, stream=True, allow_redirects=True)
             if response.status_code != 200:
+                logger.error(f"Failed to download book. HTTP status: {response.status_code}, URL: {download_url}")
                 return Response({'error': 'Failed to download book from the provided URL'}, status=500)
 
-            # Read binary content from the downloaded file
-            file_content = response.content
-            file_size = len(file_content)  # Get size of the file in bytes
-            file_type = 'epub'  # Assuming ePub format for now
+            # Save the book locally
+            local_dir = os.path.join(settings.MEDIA_ROOT, 'offline_books')
+            os.makedirs(local_dir, exist_ok=True)
+            local_path = os.path.join(local_dir, f"{title.replace(' ', '_')}_{author.replace(' ', '_')}.epub")
 
-            # Save metadata and file binary content to the database
+            with open(local_path, 'wb') as file:
+                file.write(response.content)
+
+            # Create a book entry in the database
             book = Book.objects.create(
                 user=user,
                 title=title,
                 author=author,
-                file=file_content,
-                file_type=file_type,
-                file_size=f'{file_size / 1024:.2f} KB'  # Convert bytes to KB
+                content=f'offline_books/{os.path.basename(local_path)}',  # Assuming you use a FileField
+                file_type='epub',
+                file_size=f'{os.path.getsize(local_path) / 1024:.2f} KB'
             )
 
-            # Save book locally in a dedicated folder
-            local_path = os.path.join(settings.MEDIA_ROOT, 'offline_books', f'{book.id}.epub')
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            # saves the downloaded book as a local file in a designated folder (offline_books) under MEDIA_ROOT.
+            # Trigger async operation if needed
+            download_book.delay(download_url, local_path) 
 
-            with open(local_path, 'wb') as f:
-                f.write(file_content)
-
-            # Update the book object with the local path
-            book.local_path = local_path
-            book.save()
-
-            download_book.delay(download_url)  # If any further async operations are needed
-
-            return Response({'message': 'Book downloaded successfully', 'book_id': book.id}, status=201)
+            return Response({
+                'message': 'Book downloaded successfully',
+                'book_id': book.id,
+                'file_path': book.content.url if hasattr(book.content, 'url') else book.content
+            }, status=201)
 
         except Exception as e:
+            logger.error(f"Error downloading book: {str(e)}", exc_info=True)
             return Response({'error': f'An error occurred while downloading the book: {str(e)}'}, status=500)
-
 
 # ePub Parser: Use python-epub-reader to parse and render ePub files.
 # Book Reader API: Provide API endpoints for the user to read the book.
