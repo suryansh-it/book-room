@@ -1,30 +1,30 @@
 import 'package:dio/dio.dart';
-import 'auth_service.dart'; // Import AuthService
+import 'auth_service.dart';
 
 class EpubService {
   final Dio _dio = Dio(BaseOptions(baseUrl: "http://10.0.2.2:8011/api/books/"));
-  final AuthService _authService = AuthService(); // Use AuthService instance
+  final AuthService _authService = AuthService();
 
-  // Method to download ePub file
-  Future<String> downloadEpub(String downloadUrl, String savePath, String email,
-      String password) async {
+  // Download ePub
+  Future<String> downloadEpub(
+      String title, String author, String downloadUrl, String savePath) async {
     try {
-      // Retrieve token using AuthService, either from storage or by login
-      final token = await _authService.getToken(email,
-          password); // Pass email and password to get the token dynamically
-      if (token == null) {
-        throw Exception("Authentication token not found. Please log in.");
-      }
+      // Fetch token from AuthService
+      final token = await _authService.getlogin();
+      if (token == null)
+        throw Exception("Authentication required. Please log in.");
 
-      // Set authorization header dynamically
+      // Add Authorization header
       _dio.options.headers['Authorization'] = 'Bearer $token';
 
-      print("Initiating download from: $downloadUrl");
-      print("Saving file to: $savePath");
+      print("Initiating download for $title by $author");
+      print("Downloading from: $downloadUrl");
+      print("Saving to: $savePath");
 
       final response = await _dio.download(
-        "${_dio.options.baseUrl}download/", // Use dynamic download URL
+        '/download',
         savePath,
+        queryParameters: {'title': title, 'author': author, 'url': downloadUrl},
         onReceiveProgress: (received, total) {
           if (total != -1) {
             print(
@@ -34,16 +34,14 @@ class EpubService {
       );
 
       if (response.statusCode == 200) {
-        print("Download complete. File saved to $savePath");
-        return savePath; // Return the saved file path
+        print("Download completed for $title");
+        return savePath;
       } else {
-        print("Download failed with status: ${response.statusCode}");
-        throw Exception(
-            "Failed to download ePub file: ${response.statusMessage}");
+        throw Exception("Download failed: ${response.statusMessage}");
       }
     } catch (e) {
       print("Error during download: $e");
-      throw Exception("Failed to download ePub file: $e");
+      throw Exception("Download failed: $e");
     }
   }
 }

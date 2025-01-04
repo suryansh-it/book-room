@@ -80,11 +80,11 @@ class SignupScreenState extends State<SignupScreen> {
               child: Text('Signup'),
             ),
             // Show the login button if the user already has an account
-            if (_hasAccount)
-              TextButton(
-                onPressed: _goToLogin,
-                child: Text('Already have an account? Login'),
-              ),
+
+            TextButton(
+              onPressed: _goToLogin,
+              child: Text('Already have an account? Login'),
+            ),
           ],
         ),
       ),
