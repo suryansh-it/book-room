@@ -1,5 +1,5 @@
 from django.shortcuts import render
-import requests,os,logging
+import requests,os,logging, re
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import Book
@@ -126,10 +126,19 @@ class BookDownloadView(APIView):
                 logger.error(f"Failed to download book. HTTP status: {response.status_code}, URL: {download_url}")
                 return Response({'error': 'Failed to download book from the provided URL'}, status=500)
 
+            def sanitize_filename(filename):
+                # Replace invalid characters with an underscore or remove them
+                return re.sub(r'[<>:"/\\|?*]', '_', filename)
+
+            # When creating the local file path:
+            safe_title = sanitize_filename(title)
+            safe_author = sanitize_filename(author)
+
+
             # Save the book locally
             local_dir = os.path.join(settings.MEDIA_ROOT, 'offline_books')
             os.makedirs(local_dir, exist_ok=True)
-            local_path = os.path.join(local_dir, f"{title.replace(' ', '_')}_{author.replace(' ', '_')}.epub")
+            local_path = os.path.join(local_dir, f"{safe_title.replace(' ', '_')}_{safe_author.replace(' ', '_')}.epub")
 
             with open(local_path, 'wb') as file:
                 file.write(response.content)
