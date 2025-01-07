@@ -23,92 +23,117 @@ from urllib3.util.retry import Retry
 # Configure logging
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
-class BookSearchView(APIView):
-    """🔍 Allows users to search for books on Library Genesis with robust error handling"""
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from bs4 import BeautifulSoup
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+from django.core.cache import cache
+import logging
+import re
 
-    LIBGEN_MIRRORS = [
-        'http://libgen.is',
-        'http://libgen.rs',
-        'http://libgen.li',
-        'http://libgen.st',
-        'http://93.174.95.27',
+
+class BookSearchView(APIView):
+    """🔍 Allows users to search for books on Library Genesis with robust error handling."""
+
+    SITE_MIRRORS = [
+        'https://libgen.li',  # Updated mirror URL base
     ]
     TIMEOUT = 10  # Timeout for each request (in seconds)
     RETRY_COUNT = 3  # Number of retries for each mirror
 
     def get(self, request):
-        query = request.query_params.get('q', '')  # Extract query parameter
+        query = request.query_params.get('q', '').strip()  # Extract query parameter
         if not query:
             return Response({'error': 'Search query is required'}, status=400)
 
-        # Check if results are already cached
-        cache_key = f'search_results_{query}'  # Unique cache key for this query
-        cached_results = cache.get(cache_key)  # Check if the data is in the cache
+        # Generate a unique cache key
+        cache_key = f'search_results_{query}_{hash(tuple(self.SITE_MIRRORS))}'
+        cached_results = cache.get(cache_key)
 
         if cached_results:
+            logging.info("Serving cached results")
             return Response({'results': cached_results}, status=200)
 
-        books = []  # List to store parsed book details
+        books = []  # To store parsed book details
         session = requests.Session()
 
         # Configure retry mechanism
-        retries = Retry(total=self.RETRY_COUNT, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
-        session.mount('http://', HTTPAdapter(max_retries=retries))
+        retries = Retry(
+            total=self.RETRY_COUNT,
+            backoff_factor=1,
+            status_forcelist=[500, 502, 503, 504]
+        )
+        session.mount('https://', HTTPAdapter(max_retries=retries))
 
-        # Try each mirror until one works
-        for mirror in self.LIBGEN_MIRRORS:
-            url = f'{mirror}/search.php?req={query}&open=0&res=100&view=simple&phrase=1&column=def'
+        response = None
+
+        # Iterate through mirrors
+        for mirror in self.SITE_MIRRORS:
+            url = (
+                f"{mirror}/index.php?"
+                f"req={query}&"
+                "columns[]=t&columns[]=a&columns[]=s&columns[]=y&columns[]=p&columns[]=i&"
+                "objects[]=f&objects[]=e&objects[]=s&objects[]=a&objects[]=p&objects[]=w&"
+                "topics[]=l&topics[]=c&topics[]=f&topics[]=a&topics[]=m&topics[]=r&topics[]=s&"
+                "res=100&filesuns=all"
+            )
             try:
-                response = session.get(url, timeout=self.TIMEOUT)  # Send request with timeout
+                logging.info(f"Trying mirror: {url}")
+                response = session.get(url, timeout=self.TIMEOUT)
                 if response.status_code == 200:
-                    # Successful response
+                    logging.info(f"Mirror succeeded: {mirror}")
                     break
             except requests.RequestException as e:
-                # Log error and continue to the next mirror
                 logging.error(f"Error with mirror {mirror}: {e}")
                 continue
 
-        # If no mirrors worked
         if not response or response.status_code != 200:
             logging.error("Failed to fetch data from all Library Genesis mirrors")
-            return Response({'error': 'Failed to fetch data from Library Genesis mirrors'}, status=500)
+            return Response({'error': 'Unable to fetch results. Please try again later.'}, status=500)
 
         # Parse the response
         try:
             soup = BeautifulSoup(response.content, 'html.parser')
-            table = soup.find('table', {'class': 'c'})  # Library Genesis table with class 'c'
-            rows = table.find_all('tr')[1:]  # Skip the header row
+            table = soup.find('table', {'id': 'tablelibgen'})  # Look for table with ID 'tablelibgen'
+            if not table:
+                logging.error("No results table found on the page")
+                return Response({'error': 'No results found'}, status=404)
 
+            rows = table.find_all('tr')[1:]  # Skip header row
             for row in rows:
                 columns = row.find_all('td')
-                if len(columns) > 0:
+                if len(columns) > 8:  # Ensure sufficient columns
                     book_info = {
-                        'id': columns[0].text.strip(),  # Book ID
-                        'author': columns[1].text.strip(),  # Author
-                        'title': columns[2].a.text.strip() if columns[2].a else 'N/A',  # Title
-                        'publisher': columns[3].text.strip(),  # Publisher
-                        'year': columns[4].text.strip(),  # Year
-                        'language': columns[6].text.strip(),  # Language
-                        'file_type': columns[8].text.strip(),  # File type (like EPUB, PDF)
-                        'file_size': columns[7].text.strip(),  # File size
-                        'download_link': columns[9].a['href'] if columns[9].a else None  # Direct download link
+                        'id': columns[0].text.strip(),
+                        'author': columns[1].text.strip(),
+                        'title': columns[2].a.text.strip() if columns[2].a else 'N/A',
+                        'publisher': columns[3].text.strip(),
+                        'year': columns[4].text.strip(),
+                        'language': columns[5].text.strip(),
+                        'file_type': columns[6].text.strip(),
+                        'file_size': float(re.sub(r'[^0-9.]', '', columns[7].text.strip()) or 0),  # Ensure numeric value
+                        'download_link': columns[8].a['href'] if columns[8].a else None
                     }
                     books.append(book_info)
         except Exception as e:
-            # Log parsing errors and return gracefully
-            logging.error(f"Error while parsing response: {e}")
-            return Response({'error': f'Error while parsing response: {str(e)}'}, status=500)
+            logging.error(f"Error while parsing response: {e}", exc_info=True)
+            return Response({'error': 'Failed to parse search results'}, status=500)
 
-        # Cache the results for 1 hour
-        cache.set(cache_key, books, timeout=3600)
+        # Cache the results
+        cache.set(cache_key, books, timeout=3600)  # Cache for 1 hour
+        logging.info("Search results cached successfully")
 
         return Response({'results': books}, status=200)
+
 
 logger = logging.getLogger(__name__)
 
 class BookDownloadView(APIView):
     """⬇️ Downloads an ePub book from Library Genesis"""
 
+    # Uncomment if you need authenticated access
     # permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
@@ -121,27 +146,49 @@ class BookDownloadView(APIView):
             return Response({'error': 'Title, author, and download URL are required'}, status=400)
 
         try:
-            response = requests.get(download_url, stream=True, allow_redirects=True)
-            if response.status_code != 200:
-                logger.error(f"Failed to download book. HTTP status: {response.status_code}, URL: {download_url}")
-                return Response({'error': 'Failed to download book from the provided URL'}, status=500)
+            # Step 1: Fetch the intermediate page
+            logger.info(f"Fetching intermediate page: {download_url}")
+            page_response = requests.get(download_url, allow_redirects=True)
+            if page_response.status_code != 200:
+                logger.error(f"Failed to fetch intermediate page. HTTP status: {page_response.status_code}")
+                return Response({'error': 'Failed to fetch book download page'}, status=500)
 
+            # Step 2: Parse the HTML to find the "GET" link
+            soup = BeautifulSoup(page_response.text, 'html.parser')
+            get_link = soup.find('a', string="GET")  # Find the link with text "GET"
+
+            if not get_link or not get_link.get('href'):
+                logger.error("Direct GET download link not found on the intermediate page.")
+                return Response({'error': 'Unable to locate the direct book download link'}, status=500)
+
+            direct_link = get_link['href']
+            if not direct_link.startswith('http'):
+                base_url = download_url.rsplit('/', 1)[0]
+                direct_link = f"{base_url}/{direct_link}"
+
+            # Step 3: Send a GET request to the extracted direct link
+            logger.info(f"Downloading file from: {direct_link}")
+            file_response = requests.get(direct_link, stream=True)
+            if file_response.status_code != 200:
+                logger.error(f"Failed to download book. HTTP status: {file_response.status_code}")
+                return Response({'error': 'Failed to download the book from the direct link'}, status=500)
+
+            # Sanitize filename to avoid invalid characters
             def sanitize_filename(filename):
-                # Replace invalid characters with an underscore or remove them
                 return re.sub(r'[<>:"/\\|?*]', '_', filename)
 
-            # When creating the local file path:
             safe_title = sanitize_filename(title)
             safe_author = sanitize_filename(author)
 
-
-            # Save the book locally
+            # Prepare file path
             local_dir = os.path.join(settings.MEDIA_ROOT, 'offline_books')
             os.makedirs(local_dir, exist_ok=True)
             local_path = os.path.join(local_dir, f"{safe_title.replace(' ', '_')}_{safe_author.replace(' ', '_')}.epub")
 
+            # Save the file in chunks to handle large files
             with open(local_path, 'wb') as file:
-                file.write(response.content)
+                for chunk in file_response.iter_content(chunk_size=8192):  # Save in 8KB chunks
+                    file.write(chunk)
 
             # Create a book entry in the database
             book = Book.objects.create(
@@ -150,12 +197,13 @@ class BookDownloadView(APIView):
                 author=author,
                 content=f'offline_books/{os.path.basename(local_path)}',  # Assuming you use a FileField
                 file_type='epub',
-                file_size=f'{os.path.getsize(local_path) / 1024:.2f} KB'
+                file_size=f'{os.path.getsize(local_path) / 1024:.2f} KB'  # Size in KB
             )
 
-            # Trigger async operation if needed
-            download_book.delay(download_url, local_path) 
+            # Trigger asynchronous task for further processing
+            download_book.delay(download_url, local_path)
 
+            # Return the response with book details
             return Response({
                 'message': 'Book downloaded successfully',
                 'book_id': book.id,
@@ -165,7 +213,6 @@ class BookDownloadView(APIView):
         except Exception as e:
             logger.error(f"Error downloading book: {str(e)}", exc_info=True)
             return Response({'error': f'An error occurred while downloading the book: {str(e)}'}, status=500)
-
 # ePub Parser: Use python-epub-reader to parse and render ePub files.
 # Book Reader API: Provide API endpoints for the user to read the book.
 # Frontend UI: Use JavaScript to load the ePub file and present it on the user interface.
