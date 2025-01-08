@@ -16,8 +16,8 @@ class BookService {
           try {
             // Adjust parsing to match the updated JSON structure
             return Book.fromJson({
-              'id': book['id'], // ID as string
-              'title': book['title'],
+              'id': book['id'], // ID as string, // Use as title in UI
+              'title': book['id'], // Assign `id` as `title`
               'author': book['author'],
               'publisher': book['publisher'],
               'year': book['year'], // Keep year as string for flexibility

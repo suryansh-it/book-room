@@ -8,24 +8,34 @@ class BookCard extends StatelessWidget {
 
   const BookCard({Key? key, required this.book}) : super(key: key);
 
+  // Extract title before the hashtag from `id`
+  String getFormattedTitle(String id) {
+    return id.split('#').first.trim();
+  }
+
   Future<void> _downloadBook(BuildContext context) async {
     final epubService = EpubService();
 
     try {
       // Get the document directory
       final directory = await getApplicationDocumentsDirectory();
-      final savePath = '${directory.path}/${book.title}.epub';
+      final savePath =
+          '${directory.path}/${getFormattedTitle(book.id)}.epub'; // Use formatted title for file name
 
       // Initiate the download
-      await epubService.downloadEpub(
-          book.title, book.author, book.downloadLink!, savePath);
+      await epubService.downloadEpub(getFormattedTitle(book.id), book.author,
+          book.downloadLink!, savePath);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Downloaded ${book.title} successfully!')),
+        SnackBar(
+            content:
+                Text('Downloaded ${getFormattedTitle(book.id)} successfully!')),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to download ${book.title}: $e')),
+        SnackBar(
+            content:
+                Text('Failed to download ${getFormattedTitle(book.id)}: $e')),
       );
     }
   }
@@ -39,19 +49,20 @@ class BookCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Display formatted title
             Text(
-              book.title,
+              getFormattedTitle(book.id),
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
             Text(
-              'By ${book.author}',
+              'By ${book.author}', // Display author
               style: TextStyle(fontSize: 14, color: Colors.grey[700]),
             ),
             const SizedBox(height: 8),
             if (book.publisher != null || book.year != null)
               Text(
-                'Published by ${book.publisher ?? "Unknown"} (${book.year ?? "N/A"})',
+                'Published by ${book.publisher ?? "Unknown"} (${book.year ?? "N/A"})', // Publisher and year
                 style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
             const SizedBox(height: 12),
