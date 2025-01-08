@@ -14,17 +14,19 @@ class BookService {
 
         return booksData.map((book) {
           try {
+            // Adjust parsing to match the updated JSON structure
             return Book.fromJson({
-              'id': int.parse(book['id'].toString()), // Ensure ID is an integer
+              'id': book['id'], // ID as string
               'title': book['title'],
               'author': book['author'],
               'publisher': book['publisher'],
-              'year': book['year'] != null
-                  ? int.tryParse(book['year'].toString())
-                  : null, // Year as int or null
+              'year': book['year'], // Keep year as string for flexibility
+              'language': book['language'], // Corrected for language field
               'file_type': book['file_type'],
-              'file_size': book['file_size'],
-              'download_link': book['download_link']
+              'file_size': book['file_type'], // Parse file size from file_type
+              'download_link': book['download_link'] != null
+                  ? 'https://libgen.li${book['download_link']}'
+                  : null, // Construct full download link
             });
           } catch (e) {
             throw Exception("Error parsing book data: ${e.toString()}");
