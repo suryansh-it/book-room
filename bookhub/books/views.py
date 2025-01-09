@@ -106,18 +106,20 @@ class BookSearchView(APIView):
             for row in rows:
                 columns = row.find_all('td')
                 if len(columns) > 8:  # Ensure sufficient columns
-                    book_info = {
-                        'id': columns[0].text.strip(),
-                        'author': columns[1].text.strip(),
-                        'title': columns[2].a.text.strip() if columns[2].a else 'N/A',
-                        'publisher': columns[3].text.strip(),
-                        'year': columns[4].text.strip(),
-                        'language': columns[5].text.strip(),
-                        'file_type': columns[6].text.strip(),
-                        'file_size': float(re.sub(r'[^0-9.]', '', columns[7].text.strip()) or 0),  # Ensure numeric value
-                        'download_link': columns[8].a['href'] if columns[8].a else None
-                    }
-                    books.append(book_info)
+                    file_type = columns[6].text.strip()
+                    if file_type.lower() == 'epub':  # Filter for ePub files only
+                        book_info = {
+                            'id': columns[0].text.strip(),
+                            'author': columns[1].text.strip(),
+                            'title': columns[2].a.text.strip() if columns[2].a else 'N/A',
+                            'publisher': columns[3].text.strip(),
+                            'year': columns[4].text.strip(),
+                            'language': columns[5].text.strip(),
+                            'file_type': columns[6].text.strip(),
+                            'file_size': float(re.sub(r'[^0-9.]', '', columns[7].text.strip()) or 0),  # Ensure numeric value
+                            'download_link': columns[8].a['href'] if columns[8].a else None
+                        }
+                        books.append(book_info)
         except Exception as e:
             logging.error(f"Error while parsing response: {e}", exc_info=True)
             return Response({'error': 'Failed to parse search results'}, status=500)
