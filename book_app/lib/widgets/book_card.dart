@@ -19,8 +19,7 @@ class BookCard extends StatelessWidget {
     try {
       // Get the document directory
       final directory = await getApplicationDocumentsDirectory();
-      final savePath =
-          '${directory.path}/${getFormattedTitle(book.id)}.epub'; // Use formatted title for file name
+      final savePath = '${directory.path}/${getFormattedTitle(book.id)}.epub';
 
       // Initiate the download
       await epubService.downloadEpub(getFormattedTitle(book.id), book.author,
@@ -55,22 +54,55 @@ class BookCard extends StatelessWidget {
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
+
+            // Display author
             Text(
-              'By ${book.author}', // Display author
+              'Author: ${book.author}',
               style: TextStyle(fontSize: 14, color: Colors.grey[700]),
             ),
-            const SizedBox(height: 8),
-            if (book.publisher != null || book.year != null)
+
+            // Conditional spacing for details
+            if (book.publisher != null ||
+                book.year != null ||
+                book.language != null)
+              const SizedBox(height: 8),
+
+            // Display "Published by" only if available
+            if (book.publisher != null)
               Text(
-                'Published by ${book.publisher ?? "Unknown"} (${book.year ?? "N/A"})', // Publisher and year
+                '${book.publisher}',
                 style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
+
+            // Display "Year" only if available
+            if (book.year != null)
+              Text(
+                '${book.year}',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+
+            // Display "Language" only if available
+            if (book.language != null)
+              Text(
+                '${book.language}',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+
             const SizedBox(height: 12),
+
+            // Display download button if downloadLink is available
             if (book.downloadLink != null)
               Align(
                 alignment: Alignment.centerRight,
                 child: ElevatedButton(
                   onPressed: () => _downloadBook(context),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
                   child: const Text('Download'),
                 ),
               ),

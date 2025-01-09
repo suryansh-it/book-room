@@ -1,5 +1,3 @@
-import 'dart:ffi';
-
 class Book {
   final String id;
   final String title;
@@ -38,19 +36,31 @@ class Book {
       }
     }
 
+    // Helper function to sanitize and validate URLs
+    String? sanitizeUrl(String? url) {
+      if (url == null || url.isEmpty) return null;
+
+      // Check if the URL already starts with http or https
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url;
+      } else {
+        // Prepend the base URL if missing
+        return 'https://libgen.li${url.startsWith('/') ? '' : '/'}$url';
+      }
+    }
+
     return Book(
       id: json['id'] as String,
       title: json['title'] as String,
       author: json['author'] as String,
       publisher: json['publisher'] as String?,
-      year: json['year'] as String?, // Corrected to handle string data
-      language: json['language'] as String?, // Corrected to handle string data
+      year: json['year'] as String?, // Keep as String for flexibility
+      language: json['language'] as String?, // Keep as String for flexibility
       fileType: json['file_type'] as String,
       fileSize: parseFileSize(
-          json['file_type'] ?? '0.0'), // Extract numeric part from file size
-      downloadLink: json['download_link'] != null
-          ? 'https://libgen.li${json['download_link']}' // Prepend the base URL to the download link
-          : null,
+          json['file_size']?.toString() ?? '0.0'), // Correct mapping
+      downloadLink:
+          sanitizeUrl(json['download_link'] as String?), // Proper URL handling
       localPath: json['local_path'] as String?,
       isDownloaded: json['is_downloaded'] as bool? ?? false, // Default to false
     );

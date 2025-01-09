@@ -1,6 +1,3 @@
-//  Model for ePub metadata
-
-// Model for ePub metadata
 class EpubFile {
   final int id;
   final String title;
@@ -16,11 +13,26 @@ class EpubFile {
 
   // Factory method to create an EpubFile from JSON
   factory EpubFile.fromJson(Map<String, dynamic> json) {
+    String? rawDownloadUrl = json['download_url'];
+    String? formattedDownloadUrl;
+
+    if (rawDownloadUrl != null && rawDownloadUrl.isNotEmpty) {
+      if (rawDownloadUrl.startsWith('http://') ||
+          rawDownloadUrl.startsWith('https://')) {
+        formattedDownloadUrl = rawDownloadUrl;
+      } else {
+        formattedDownloadUrl =
+            'https://libgen.li${rawDownloadUrl.startsWith('/') ? '' : '/'}$rawDownloadUrl';
+      }
+    } else {
+      throw Exception("Invalid download URL");
+    }
+
     return EpubFile(
-      id: json['id'],
-      title: json['title'],
-      author: json['author'],
-      downloadUrl: json['download_url'],
+      id: json['id'] as int,
+      title: json['title'] as String,
+      author: json['author'] as String,
+      downloadUrl: formattedDownloadUrl,
     );
   }
 }

@@ -1,5 +1,5 @@
 from django.shortcuts import render
-import requests,os,logging, re
+import requests,os,logging, re 
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import Book
@@ -14,6 +14,7 @@ from .utils import save_chapters_to_db
 from django.conf import settings
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from urllib.parse import urlparse
 
 # Use requests to send an HTTP request to Library Genesis.
 # Extract book information (title, author, download link, etc.) from the response.
@@ -145,13 +146,17 @@ class BookDownloadView(APIView):
         if not download_url or not title or not author:
             return Response({'error': 'Title, author, and download URL are required'}, status=400)
 
+            # Validate and sanitize the download_url
+        parsed_url = urlparse(download_url)
+        if not parsed_url.scheme or not parsed_url.netloc:
+            logger.error(f"Malformed URL: {download_url}")
+            return Response({'error': 'Invalid download URL provided'}, status=400)
+
         try:
             # Step 1: Fetch the intermediate page
             logger.info(f"Fetching intermediate page: {download_url}")
             page_response = requests.get(download_url, allow_redirects=True)
-            if page_response.status_code != 200:
-                logger.error(f"Failed to fetch intermediate page. HTTP status: {page_response.status_code}")
-                return Response({'error': 'Failed to fetch book download page'}, status=500)
+            page_response.raise_for_status()  # Raise an exception for HTTP errors
 
             # Step 2: Parse the HTML to find the "GET" link
             soup = BeautifulSoup(page_response.text, 'html.parser')
@@ -159,19 +164,17 @@ class BookDownloadView(APIView):
 
             if not get_link or not get_link.get('href'):
                 logger.error("Direct GET download link not found on the intermediate page.")
-                return Response({'error': 'Unable to locate the direct book download link'}, status=500)
+                return Response({'error': 'Unable to locate the direct book download link'}, status=404)
 
             direct_link = get_link['href']
             if not direct_link.startswith('http'):
                 base_url = download_url.rsplit('/', 1)[0]
                 direct_link = f"{base_url}/{direct_link}"
 
-            # Step 3: Send a GET request to the extracted direct link
+            # Step 3: Download the file from the extracted direct link
             logger.info(f"Downloading file from: {direct_link}")
             file_response = requests.get(direct_link, stream=True)
-            if file_response.status_code != 200:
-                logger.error(f"Failed to download book. HTTP status: {file_response.status_code}")
-                return Response({'error': 'Failed to download the book from the direct link'}, status=500)
+            file_response.raise_for_status()  # Raise an exception for HTTP errors
 
             # Sanitize filename to avoid invalid characters
             def sanitize_filename(filename):
@@ -200,7 +203,7 @@ class BookDownloadView(APIView):
                 file_size=f'{os.path.getsize(local_path) / 1024:.2f} KB'  # Size in KB
             )
 
-            # Trigger asynchronous task for further processing
+            # Trigger asynchronous task for further processing (optional)
             download_book.delay(download_url, local_path)
 
             # Return the response with book details
@@ -210,9 +213,17 @@ class BookDownloadView(APIView):
                 'file_path': book.content.url if hasattr(book.content, 'url') else book.content
             }, status=201)
 
+        except requests.exceptions.RequestException as e:
+            logger.error(f"HTTP request error: {str(e)}")
+            return Response({'error': f'HTTP request failed: {str(e)}'}, status=500)
+        except OSError as e:
+            logger.error(f"File handling error: {str(e)}")
+            return Response({'error': f'File handling error: {str(e)}'}, status=500)
         except Exception as e:
-            logger.error(f"Error downloading book: {str(e)}", exc_info=True)
+            logger.error(f"Unexpected error: {str(e)}", exc_info=True)
             return Response({'error': f'An error occurred while downloading the book: {str(e)}'}, status=500)
+
+
 # ePub Parser: Use python-epub-reader to parse and render ePub files.
 # Book Reader API: Provide API endpoints for the user to read the book.
 # Frontend UI: Use JavaScript to load the ePub file and present it on the user interface.
