@@ -15,6 +15,7 @@ from django.conf import settings
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from urllib.parse import urlparse
+from playwright.sync_api import sync_playwright
 
 # Use requests to send an HTTP request to Library Genesis.
 # Extract book information (title, author, download link, etc.) from the response.
@@ -107,8 +108,8 @@ class BookSearchView(APIView):
                 columns = row.find_all('td')
                 if len(columns) > 8:  # Ensure sufficient columns
                     file_type = columns[6].text.strip()
-                    if file_type.lower() == 'epub':  # Filter for ePub files only
-                        book_info = {
+                    # if file_type.lower() == 'epub':  # Filter for ePub files only
+                    book_info = {
                             'id': columns[0].text.strip(),
                             'author': columns[1].text.strip(),
                             'title': columns[2].a.text.strip() if columns[2].a else 'N/A',
@@ -119,7 +120,7 @@ class BookSearchView(APIView):
                             'file_size': float(re.sub(r'[^0-9.]', '', columns[7].text.strip()) or 0),  # Ensure numeric value
                             'download_link': columns[8].a['href'] if columns[8].a else None
                         }
-                        books.append(book_info)
+                    books.append(book_info)
         except Exception as e:
             logging.error(f"Error while parsing response: {e}", exc_info=True)
             return Response({'error': 'Failed to parse search results'}, status=500)
@@ -133,82 +134,88 @@ class BookSearchView(APIView):
 
 logger = logging.getLogger(__name__)
 
-class BookDownloadView(APIView):
-    """⬇️ Downloads an ePub book from Library Genesis"""
 
-    # Uncomment if you need authenticated access
-    # permission_classes = [permissions.IsAuthenticated]
+class BookDownloadView(APIView):
+    """⬇️ Handles the download of an ePub book from Library Genesis"""
 
     def get(self, request):
         user = request.user
+        # Extract query parameters from the request
         download_url = request.query_params.get('url', '').strip()
         title = request.query_params.get('title', '').strip()
         author = request.query_params.get('author', '').strip()
 
-        if not download_url or not title or not author:
-            return Response({'error': 'Title, author, and download URL are required'}, status=400)
+        # Validate the required inputs
+        if not download_url or not title :
+            return Response({'error': 'Title, and download URL are required'}, status=400)
 
-            # Validate and sanitize the download_url
+        # Validate and sanitize the provided download URL
         parsed_url = urlparse(download_url)
         if not parsed_url.scheme or not parsed_url.netloc:
             logger.error(f"Malformed URL: {download_url}")
             return Response({'error': 'Invalid download URL provided'}, status=400)
 
         try:
-            # Step 1: Fetch the intermediate page
-            logger.info(f"Fetching intermediate page: {download_url}")
-            page_response = requests.get(download_url, allow_redirects=True)
-            page_response.raise_for_status()  # Raise an exception for HTTP errors
+            # Use Playwright to handle the intermediate page and extract the direct download link
+            logger.info(f"Opening intermediate page and triggering download for URL: {download_url}")
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                context = browser.new_context(accept_downloads=True)
+                page = context.new_page()
 
-            # Step 2: Parse the HTML to find the "GET" link
-            soup = BeautifulSoup(page_response.text, 'html.parser')
-            get_link = soup.find('a', string="GET")  # Find the link with text "GET"
+                # Navigate to the provided URL
+                page.goto(download_url)
 
-            if not get_link or not get_link.get('href'):
-                logger.error("Direct GET download link not found on the intermediate page.")
-                return Response({'error': 'Unable to locate the direct book download link'}, status=404)
+                # Wait for the "GET" button to appear and click it to trigger download
+                logger.info("Waiting for 'GET' button to appear on the page...")
+                page.wait_for_selector('a:text("GET")', timeout=10000)
+                logger.info("Clicking the 'GET' button to initiate download...")
 
-            direct_link = get_link['href']
-            if not direct_link.startswith('http'):
-                base_url = download_url.rsplit('/', 1)[0]
-                direct_link = f"{base_url}/{direct_link}"
+                # Use expect_download to handle the file download
+                with page.expect_download() as download_info:
+                    page.click('a:text("GET")')  # Trigger the file download
+                
+                # Get the downloaded file from the Playwright context
+                download = download_info.value
+                download_path = download.path()
 
-            # Step 3: Download the file from the extracted direct link
-            logger.info(f"Downloading file from: {direct_link}")
-            file_response = requests.get(direct_link, stream=True)
-            file_response.raise_for_status()  # Raise an exception for HTTP errors
+                # Sanitize the file name to avoid invalid characters
+                def sanitize_filename(filename):
+                    return re.sub(r'[<>:"/\\|?*]', '_', filename)
 
-            # Sanitize filename to avoid invalid characters
-            def sanitize_filename(filename):
-                return re.sub(r'[<>:"/\\|?*]', '_', filename)
+                safe_title = sanitize_filename(title)
+                safe_author = sanitize_filename(author)
 
-            safe_title = sanitize_filename(title)
-            safe_author = sanitize_filename(author)
+                # Create the local directory to store the file
+                local_dir = os.path.join(settings.MEDIA_ROOT, 'offline_books')
+                os.makedirs(local_dir, exist_ok=True)
 
-            # Prepare file path
-            local_dir = os.path.join(settings.MEDIA_ROOT, 'offline_books')
-            os.makedirs(local_dir, exist_ok=True)
-            local_path = os.path.join(local_dir, f"{safe_title.replace(' ', '_')}_{safe_author.replace(' ', '_')}.epub")
+                # Define the local file path
+                local_path = os.path.join(
+                    local_dir,
+                    f"{safe_title.replace(' ', '_')}_{safe_author.replace(' ', '_')}.epub"
+                )
 
-            # Save the file in chunks to handle large files
-            with open(local_path, 'wb') as file:
-                for chunk in file_response.iter_content(chunk_size=8192):  # Save in 8KB chunks
-                    file.write(chunk)
+                # Move the downloaded file to the desired location
+                os.rename(download_path, local_path)
 
-            # Create a book entry in the database
+                browser.close()
+
+            # Save the downloaded file details in the database
+            logger.info("Saving downloaded book details to the database...")
             book = Book.objects.create(
                 user=user,
                 title=title,
                 author=author,
-                content=f'offline_books/{os.path.basename(local_path)}',  # Assuming you use a FileField
+                content=f'offline_books/{os.path.basename(local_path)}',  # Assuming a FileField is used
                 file_type='epub',
-                file_size=f'{os.path.getsize(local_path) / 1024:.2f} KB'  # Size in KB
+                file_size=f'{os.path.getsize(local_path) / 1024:.2f} KB'  # Convert file size to KB
             )
 
-            # Trigger asynchronous task for further processing (optional)
+            # Optional: Trigger an asynchronous task for further processing (e.g., metadata extraction)
             download_book.delay(download_url, local_path)
 
-            # Return the response with book details
+            # Return success response with book details
             return Response({
                 'message': 'Book downloaded successfully',
                 'book_id': book.id,
@@ -216,12 +223,15 @@ class BookDownloadView(APIView):
             }, status=201)
 
         except requests.exceptions.RequestException as e:
+            # Handle HTTP request errors
             logger.error(f"HTTP request error: {str(e)}")
             return Response({'error': f'HTTP request failed: {str(e)}'}, status=500)
         except OSError as e:
+            # Handle file-related errors
             logger.error(f"File handling error: {str(e)}")
             return Response({'error': f'File handling error: {str(e)}'}, status=500)
         except Exception as e:
+            # Handle unexpected errors
             logger.error(f"Unexpected error: {str(e)}", exc_info=True)
             return Response({'error': f'An error occurred while downloading the book: {str(e)}'}, status=500)
 
