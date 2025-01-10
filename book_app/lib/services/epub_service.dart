@@ -21,10 +21,16 @@ class EpubService {
       print("Downloading from: $downloadUrl");
       print("Saving to: $savePath");
 
+      final sanitizedAuthor = author.isNotEmpty ? author : "Unknown Author";
+
       final response = await _dio.download(
         '/download',
         savePath,
-        queryParameters: {'title': title, 'author': author, 'url': downloadUrl},
+        queryParameters: {
+          'title': title,
+          'author': sanitizedAuthor,
+          'url': downloadUrl
+        },
         onReceiveProgress: (received, total) {
           if (total != -1) {
             print(

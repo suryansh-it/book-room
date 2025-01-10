@@ -30,7 +30,9 @@ class BookService {
             return Book.fromJson({
               'id': book['id']?.toString() ?? '',
               'title': book['title'] ?? 'Unknown Title',
-              'author': book['author'] ?? 'Unknown Author',
+              'author': book['author'] != null && book['author'].isNotEmpty
+                  ? book['author']
+                  : 'Unknown Author',
               'publisher': book['publisher'] ?? 'Unknown Publisher',
               'year': book['year']?.toString(),
               'language': book['language'] ?? 'Unknown Language',
