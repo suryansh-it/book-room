@@ -15,7 +15,17 @@ from django.conf import settings
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from urllib.parse import urlparse
-from playwright.sync_api import sync_playwright
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.webdriver.chrome.options import Options
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+
+service = Service(ChromeDriverManager().install())
+driver = webdriver.Chrome(service=service)
 
 # Use requests to send an HTTP request to Library Genesis.
 # Extract book information (title, author, download link, etc.) from the response.
@@ -146,7 +156,7 @@ class BookDownloadView(APIView):
         author = request.query_params.get('author', '').strip()
 
         # Validate the required inputs
-        if not download_url or not title :
+        if not download_url or not title:
             return Response({'error': 'Title, and download URL are required'}, status=400)
 
         # Validate and sanitize the provided download URL
@@ -156,52 +166,72 @@ class BookDownloadView(APIView):
             return Response({'error': 'Invalid download URL provided'}, status=400)
 
         try:
-            # Use Playwright to handle the intermediate page and extract the direct download link
-            logger.info(f"Opening intermediate page and triggering download for URL: {download_url}")
-            with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                context = browser.new_context(accept_downloads=True)
-                page = context.new_page()
+            # Step 1: Use requests to set up session cookies
+            logger.info("Initiating HTTP session to fetch required cookies...")
+            session = requests.Session()
+            response = session.get(download_url, timeout=10)
 
-                # Navigate to the provided URL
-                page.goto(download_url)
+            # Ensure the page is reachable
+            if response.status_code != 200:
+                logger.error(f"Failed to fetch intermediate page: {response.status_code}")
+                return Response({'error': 'Failed to fetch intermediate page'}, status=500)
 
-                # Wait for the "GET" button to appear and click it to trigger download
-                logger.info("Waiting for 'GET' button to appear on the page...")
-                page.wait_for_selector('a:text("GET")', timeout=10000)
-                logger.info("Clicking the 'GET' button to initiate download...")
+            # Extract cookies from the session
+            cookies = session.cookies.get_dict()
+            logger.info(f"Cookies extracted for Selenium session: {cookies}")
 
-                # Use expect_download to handle the file download
-                with page.expect_download() as download_info:
-                    page.click('a:text("GET")')  # Trigger the file download
-                
-                # Get the downloaded file from the Playwright context
-                download = download_info.value
-                download_path = download.path()
+            # Step 2: Use Selenium to handle JavaScript and trigger the download
+            logger.info("Setting up Selenium WebDriver...")
+            chrome_options = Options()
+            chrome_options.add_argument('--headless')  # Run in headless mode for server environments
+            chrome_options.add_argument('--disable-gpu')  # Disable GPU acceleration
+            chrome_options.add_argument('--no-sandbox')  # Required for some Linux environments
+            chrome_options.add_argument('--disable-dev-shm-usage')  # Prevent crashes due to limited resources
+            service = ChromeService(executable_path='/path/to/chromedriver')  # Update path to your ChromeDriver
 
-                # Sanitize the file name to avoid invalid characters
-                def sanitize_filename(filename):
-                    return re.sub(r'[<>:"/\\|?*]', '_', filename)
+            # Initialize the WebDriver
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+            driver.get(download_url)
 
-                safe_title = sanitize_filename(title)
-                safe_author = sanitize_filename(author)
+            # Inject cookies into the browser
+            for name, value in cookies.items():
+                driver.add_cookie({'name': name, 'value': value})
+            driver.refresh()  # Refresh to apply cookies
 
-                # Create the local directory to store the file
-                local_dir = os.path.join(settings.MEDIA_ROOT, 'offline_books')
-                os.makedirs(local_dir, exist_ok=True)
+            # Wait for the "GET" button and click it
+            logger.info("Waiting for the 'GET' button to appear...")
+            get_button = driver.find_element(By.LINK_TEXT, "GET")
+            logger.info("Clicking the 'GET' button to trigger download...")
+            ActionChains(driver).move_to_element(get_button).click().perform()
 
-                # Define the local file path
-                local_path = os.path.join(
-                    local_dir,
-                    f"{safe_title.replace(' ', '_')}_{safe_author.replace(' ', '_')}.epub"
-                )
+            # Wait for the download to complete (modify this according to your setup)
+            logger.info("Download triggered successfully. Processing file...")
 
-                # Move the downloaded file to the desired location
-                os.rename(download_path, local_path)
+            # Step 3: Locate the downloaded file
+            download_dir = os.path.join(settings.MEDIA_ROOT, 'offline_books')
+            os.makedirs(download_dir, exist_ok=True)
 
-                browser.close()
+            # Sanitize file name
+            def sanitize_filename(filename):
+                return re.sub(r'[<>:"/\\|?*]', '_', filename)
 
-            # Save the downloaded file details in the database
+            safe_title = sanitize_filename(title)
+            safe_author = sanitize_filename(author)
+            local_path = os.path.join(
+                download_dir,
+                f"{safe_title.replace(' ', '_')}_{safe_author.replace(' ', '_')}.epub"
+            )
+
+            # Move or rename the downloaded file to the desired location
+            # Assuming the default Chrome download path is known and set
+            default_download_path = '/path/to/default/chrome/downloads'
+            for file in os.listdir(default_download_path):
+                if file.endswith('.epub'):
+                    os.rename(os.path.join(default_download_path, file), local_path)
+
+            driver.quit()
+
+            # Step 4: Save book details in the database
             logger.info("Saving downloaded book details to the database...")
             book = Book.objects.create(
                 user=user,
@@ -212,7 +242,7 @@ class BookDownloadView(APIView):
                 file_size=f'{os.path.getsize(local_path) / 1024:.2f} KB'  # Convert file size to KB
             )
 
-            # Optional: Trigger an asynchronous task for further processing (e.g., metadata extraction)
+            # Optional: Trigger an asynchronous task for further processing
             download_book.delay(download_url, local_path)
 
             # Return success response with book details
@@ -234,7 +264,6 @@ class BookDownloadView(APIView):
             # Handle unexpected errors
             logger.error(f"Unexpected error: {str(e)}", exc_info=True)
             return Response({'error': f'An error occurred while downloading the book: {str(e)}'}, status=500)
-
 
 # ePub Parser: Use python-epub-reader to parse and render ePub files.
 # Book Reader API: Provide API endpoints for the user to read the book.
