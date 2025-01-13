@@ -22,10 +22,16 @@ from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.chrome.options import Options
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from time import sleep
 
-service = Service(ChromeDriverManager().install())
+
+
+service = Service("D:/Dev/chromedriver-win64/chromedriver.exe")
 driver = webdriver.Chrome(service=service)
+
 
 # Use requests to send an HTTP request to Library Genesis.
 # Extract book information (title, author, download link, etc.) from the response.
@@ -35,15 +41,15 @@ driver = webdriver.Chrome(service=service)
 # Configure logging
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from bs4 import BeautifulSoup
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
-from django.core.cache import cache
-import logging
-import re
+# from rest_framework.views import APIView
+# from rest_framework.response import Response
+# from bs4 import BeautifulSoup
+# import requests
+# from requests.adapters import HTTPAdapter
+# from urllib3.util.retry import Retry
+# from django.core.cache import cache
+# import logging
+# import re
 
 
 class BookSearchView(APIView):
@@ -118,18 +124,23 @@ class BookSearchView(APIView):
                 columns = row.find_all('td')
                 if len(columns) > 8:  # Ensure sufficient columns
                     file_type = columns[6].text.strip()
-                    # if file_type.lower() == 'epub':  # Filter for ePub files only
+                    libgen_link = None
+                    download_links = columns[8].find_all('a', {'data-original-title': 'libgen'})
+                    if download_links:
+                        libgen_link = download_links[0]['href']
+
                     book_info = {
-                            'id': columns[0].text.strip(),
-                            'author': columns[1].text.strip(),
-                            'title': columns[2].a.text.strip() if columns[2].a else 'N/A',
-                            'publisher': columns[3].text.strip(),
-                            'year': columns[4].text.strip(),
-                            'language': columns[5].text.strip(),
-                            'file_type': columns[6].text.strip(),
-                            'file_size': float(re.sub(r'[^0-9.]', '', columns[7].text.strip()) or 0),  # Ensure numeric value
-                            'download_link': columns[8].a['href'] if columns[8].a else None
-                        }
+                        'id': columns[0].text.strip(),
+                        'author': columns[1].text.strip(),
+                        'title': columns[2].a.text.strip() if columns[2].a else 'N/A',
+                        'publisher': columns[3].text.strip(),
+                        'year': columns[4].text.strip(),
+                        'language': columns[5].text.strip(),
+                        'file_type': columns[6].text.strip(),
+                        'file_size': float(re.sub(r'[^0-9.]', '', columns[7].text.strip()) or 0),
+                        'download_link': libgen_link  # Save but do not send to frontend
+                    }
+
                     books.append(book_info)
         except Exception as e:
             logging.error(f"Error while parsing response: {e}", exc_info=True)
@@ -144,108 +155,113 @@ class BookSearchView(APIView):
 
 logger = logging.getLogger(__name__)
 
-
 class BookDownloadView(APIView):
-    """⬇️ Handles the download of an ePub book from Library Genesis"""
+    """
+    Handles the download of an ePub book from Library Genesis.
+
+    This view fetches an intermediate page, triggers the final download,
+    saves the book to the database, and schedules further processing with a Celery task.
+    """
+
+    def fetch_and_download_book(download_url):
+        """
+    Fetch the intermediate page, locate the 'GET' button, and download the ePub file.
+
+    Args:
+        download_url (str): The URL of the intermediate page with the 'GET' button.
+
+    Returns:
+        str: The local path of the downloaded file.
+
+    Raises:
+        Exception: If any step in the process fails. """
+        try:
+            # Start a session for HTTP requests
+            session = requests.Session()
+
+            # Fetch the intermediate page
+            logger.info(f"Fetching intermediate page: {download_url}")
+            response = session.get(download_url, timeout=10)
+            if response.status_code != 200:
+                logger.error(f"Failed to fetch intermediate page: {response.status_code}")
+                raise Exception("Failed to fetch intermediate page")
+
+            # Parse the page to find the 'GET' button
+            soup = BeautifulSoup(response.content, 'html.parser')
+            get_button = soup.find('a', text='GET')
+            if not get_button:
+                logger.error("GET button not found on intermediate page")
+                raise Exception("GET button not found")
+
+            # Extract the final download URL
+            final_download_url = get_button['href']
+            logger.info(f"Final download URL: {final_download_url}")
+
+            # Download the ePub file
+            download_response = session.get(final_download_url, stream=True)
+            if download_response.status_code == 200:
+                # Define the local download directory
+                download_dir = os.path.join(settings.MEDIA_ROOT, 'offline_books')
+                os.makedirs(download_dir, exist_ok=True)
+
+                # Sanitize and create the filename
+                sanitized_filename = os.path.basename(final_download_url)
+                local_path = os.path.join(download_dir, sanitized_filename)
+
+                # Save the downloaded file locally
+                logger.info(f"Saving file to: {local_path}")
+                with open(local_path, 'wb') as f:
+                    for chunk in download_response.iter_content(chunk_size=1024):
+                        if chunk:
+                            f.write(chunk)
+
+                return local_path
+            else:
+                logger.error(f"Failed to download file: {download_response.status_code}")
+                raise Exception("Failed to download file")
+
+        except Exception as e:
+            logger.error(f"Error in fetch_and_download_book: {str(e)}")
+            raise
 
     def get(self, request):
+        # Extract user and query parameters from the request
         user = request.user
-        # Extract query parameters from the request
         download_url = request.query_params.get('url', '').strip()
         title = request.query_params.get('title', '').strip()
         author = request.query_params.get('author', '').strip()
 
-        # Validate the required inputs
+        # Validate mandatory parameters
         if not download_url or not title:
-            return Response({'error': 'Title, and download URL are required'}, status=400)
+            return Response({'error': 'Title and download URL are required'}, status=400)
 
-        # Validate and sanitize the provided download URL
+        # Validate the download URL
         parsed_url = urlparse(download_url)
         if not parsed_url.scheme or not parsed_url.netloc:
             logger.error(f"Malformed URL: {download_url}")
             return Response({'error': 'Invalid download URL provided'}, status=400)
 
         try:
-            # Step 1: Use requests to set up session cookies
-            logger.info("Initiating HTTP session to fetch required cookies...")
-            session = requests.Session()
-            response = session.get(download_url, timeout=10)
+            # Call the helper function to fetch and download the book
+            local_path = self.fetch_and_download_book(download_url)
 
-            # Ensure the page is reachable
-            if response.status_code != 200:
-                logger.error(f"Failed to fetch intermediate page: {response.status_code}")
-                return Response({'error': 'Failed to fetch intermediate page'}, status=500)
-
-            # Extract cookies from the session
-            cookies = session.cookies.get_dict()
-            logger.info(f"Cookies extracted for Selenium session: {cookies}")
-
-            # Step 2: Use Selenium to handle JavaScript and trigger the download
-            logger.info("Setting up Selenium WebDriver...")
-            chrome_options = Options()
-            chrome_options.add_argument('--headless')  # Run in headless mode for server environments
-            chrome_options.add_argument('--disable-gpu')  # Disable GPU acceleration
-            chrome_options.add_argument('--no-sandbox')  # Required for some Linux environments
-            chrome_options.add_argument('--disable-dev-shm-usage')  # Prevent crashes due to limited resources
-            service = ChromeService(executable_path='/path/to/chromedriver')  # Update path to your ChromeDriver
-
-            # Initialize the WebDriver
-            driver = webdriver.Chrome(service=service, options=chrome_options)
-            driver.get(download_url)
-
-            # Inject cookies into the browser
-            for name, value in cookies.items():
-                driver.add_cookie({'name': name, 'value': value})
-            driver.refresh()  # Refresh to apply cookies
-
-            # Wait for the "GET" button and click it
-            logger.info("Waiting for the 'GET' button to appear...")
-            get_button = driver.find_element(By.LINK_TEXT, "GET")
-            logger.info("Clicking the 'GET' button to trigger download...")
-            ActionChains(driver).move_to_element(get_button).click().perform()
-
-            # Wait for the download to complete (modify this according to your setup)
-            logger.info("Download triggered successfully. Processing file...")
-
-            # Step 3: Locate the downloaded file
-            download_dir = os.path.join(settings.MEDIA_ROOT, 'offline_books')
-            os.makedirs(download_dir, exist_ok=True)
-
-            # Sanitize file name
-            def sanitize_filename(filename):
-                return re.sub(r'[<>:"/\\|?*]', '_', filename)
-
-            safe_title = sanitize_filename(title)
-            safe_author = sanitize_filename(author)
-            local_path = os.path.join(
-                download_dir,
-                f"{safe_title.replace(' ', '_')}_{safe_author.replace(' ', '_')}.epub"
-            )
-
-            # Move or rename the downloaded file to the desired location
-            # Assuming the default Chrome download path is known and set
-            default_download_path = '/path/to/default/chrome/downloads'
-            for file in os.listdir(default_download_path):
-                if file.endswith('.epub'):
-                    os.rename(os.path.join(default_download_path, file), local_path)
-
-            driver.quit()
-
-            # Step 4: Save book details in the database
+            # Save the downloaded book's metadata to the database
             logger.info("Saving downloaded book details to the database...")
+            sanitized_filename = os.path.basename(local_path)
             book = Book.objects.create(
                 user=user,
                 title=title,
                 author=author,
-                content=f'offline_books/{os.path.basename(local_path)}',  # Assuming a FileField is used
+                content=f'offline_books/{sanitized_filename}',
                 file_type='epub',
-                file_size=f'{os.path.getsize(local_path) / 1024:.2f} KB'  # Convert file size to KB
+                file_size=f'{os.path.getsize(local_path) / 1024:.2f} KB'  # File size in KB
             )
 
-            # Optional: Trigger an asynchronous task for further processing
+            # Trigger a Celery task for post-download processing
+            logger.info("Triggering Celery task for further processing...")
             download_book.delay(download_url, local_path)
 
-            # Return success response with book details
+            # Respond with a success message and book details
             return Response({
                 'message': 'Book downloaded successfully',
                 'book_id': book.id,
@@ -253,17 +269,20 @@ class BookDownloadView(APIView):
             }, status=201)
 
         except requests.exceptions.RequestException as e:
-            # Handle HTTP request errors
+            # Handle HTTP-related errors
             logger.error(f"HTTP request error: {str(e)}")
             return Response({'error': f'HTTP request failed: {str(e)}'}, status=500)
+
         except OSError as e:
             # Handle file-related errors
             logger.error(f"File handling error: {str(e)}")
             return Response({'error': f'File handling error: {str(e)}'}, status=500)
+
         except Exception as e:
-            # Handle unexpected errors
+            # Handle any unexpected errors
             logger.error(f"Unexpected error: {str(e)}", exc_info=True)
             return Response({'error': f'An error occurred while downloading the book: {str(e)}'}, status=500)
+
 
 # ePub Parser: Use python-epub-reader to parse and render ePub files.
 # Book Reader API: Provide API endpoints for the user to read the book.

@@ -6,7 +6,7 @@ import '../services/epub_service.dart';
 class BookCard extends StatelessWidget {
   final Book book;
 
-  const BookCard({Key? key, required this.book}) : super(key: key);
+  const BookCard({super.key, required this.book});
 
   // Extract title before the hashtag from `id`
   String getFormattedTitle(String id) {
@@ -91,21 +91,21 @@ class BookCard extends StatelessWidget {
             const SizedBox(height: 12),
 
             // Display download button if downloadLink is available
-            if (book.downloadLink != null)
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton(
-                  onPressed: () => _downloadBook(context),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
+            // if (book.downloadLink != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton(
+                onPressed: () => _downloadBook(context),
+                style: ElevatedButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Text('Download'),
                 ),
+                child: const Text('Download'),
               ),
+            ),
           ],
         ),
       ),

@@ -11,8 +11,9 @@ class EpubService {
     try {
       // Fetch token from AuthService
       final token = await _authService.getlogin();
-      if (token == null)
+      if (token == null) {
         throw Exception("Authentication required. Please log in.");
+      }
 
       // Add Authorization header
       _dio.options.headers['Authorization'] = 'Bearer $token';

@@ -27,12 +27,18 @@ class Book {
 
   // Factory constructor to create a Book object from JSON
   factory Book.fromJson(Map<String, dynamic> json) {
-    // Parse the file size as a double, handling errors gracefully
-    double parseFileSize(String size) {
+    // Parse the file size as a double, handling both String and double types
+    double parseFileSize(dynamic size) {
       try {
-        return double.parse(size.replaceAll(RegExp(r'[^0-9.]'), ''));
+        if (size is String) {
+          return double.parse(size.replaceAll(RegExp(r'[^0-9.]'), ''));
+        } else if (size is double || size is int) {
+          return size.toDouble();
+        } else {
+          return 0.0;
+        }
       } catch (e) {
-        return 0.0;
+        return 0.0; // Fallback in case of parsing failure
       }
     }
 
@@ -57,8 +63,7 @@ class Book {
       year: json['year'] as String?, // Keep as String for flexibility
       language: json['language'] as String?, // Keep as String for flexibility
       fileType: json['file_type'] as String,
-      fileSize: parseFileSize(
-          json['file_size']?.toString() ?? '0.0'), // Correct mapping
+      fileSize: parseFileSize(json['file_size']), // Updated parsing logic
       downloadLink:
           sanitizeUrl(json['download_link'] as String?), // Proper URL handling
       localPath: json['local_path'] as String?,
