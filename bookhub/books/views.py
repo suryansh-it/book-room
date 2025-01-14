@@ -136,7 +136,7 @@ class BookSearchView(APIView):
                         'publisher': columns[3].text.strip(),
                         'year': columns[4].text.strip(),
                         'language': columns[5].text.strip(),
-                        'file_type': columns[6].text.strip(),
+                        'file_type': file_type,
                         'file_size': float(re.sub(r'[^0-9.]', '', columns[7].text.strip()) or 0),
                         'download_link': libgen_link  # Save but do not send to frontend
                     }
@@ -162,7 +162,7 @@ class BookDownloadView(APIView):
     This view fetches an intermediate page, triggers the final download,
     saves the book to the database, and schedules further processing with a Celery task.
     """
-
+    @staticmethod
     def fetch_and_download_book(download_url):
         """
     Fetch the intermediate page, locate the 'GET' button, and download the ePub file.
@@ -224,65 +224,37 @@ class BookDownloadView(APIView):
             logger.error(f"Error in fetch_and_download_book: {str(e)}")
             raise
 
-    def get(self, request):
-        # Extract user and query parameters from the request
-        user = request.user
-        download_url = request.query_params.get('url', '').strip()
-        title = request.query_params.get('title', '').strip()
-        author = request.query_params.get('author', '').strip()
+    def post(self, request):
+        # Extract download link and other details
+        download_url = request.data.get('libgen_link', '').strip()
+        title = request.data.get('title', '').strip()
+        author = request.data.get('author', '').strip()
 
-        # Validate mandatory parameters
         if not download_url or not title:
-            return Response({'error': 'Title and download URL are required'}, status=400)
-
-        # Validate the download URL
-        parsed_url = urlparse(download_url)
-        if not parsed_url.scheme or not parsed_url.netloc:
-            logger.error(f"Malformed URL: {download_url}")
-            return Response({'error': 'Invalid download URL provided'}, status=400)
+            return Response({'error': 'Download URL and title are required'}, status=400)
 
         try:
-            # Call the helper function to fetch and download the book
             local_path = self.fetch_and_download_book(download_url)
-
-            # Save the downloaded book's metadata to the database
-            logger.info("Saving downloaded book details to the database...")
             sanitized_filename = os.path.basename(local_path)
             book = Book.objects.create(
-                user=user,
+                user=request.user,
                 title=title,
                 author=author,
                 content=f'offline_books/{sanitized_filename}',
                 file_type='epub',
-                file_size=f'{os.path.getsize(local_path) / 1024:.2f} KB'  # File size in KB
+                file_size=f'{os.path.getsize(local_path) / 1024:.2f} KB'
             )
 
-            # Trigger a Celery task for post-download processing
-            logger.info("Triggering Celery task for further processing...")
             download_book.delay(download_url, local_path)
 
-            # Respond with a success message and book details
             return Response({
                 'message': 'Book downloaded successfully',
                 'book_id': book.id,
                 'file_path': book.content.url if hasattr(book.content, 'url') else book.content
             }, status=201)
 
-        except requests.exceptions.RequestException as e:
-            # Handle HTTP-related errors
-            logger.error(f"HTTP request error: {str(e)}")
-            return Response({'error': f'HTTP request failed: {str(e)}'}, status=500)
-
-        except OSError as e:
-            # Handle file-related errors
-            logger.error(f"File handling error: {str(e)}")
-            return Response({'error': f'File handling error: {str(e)}'}, status=500)
-
         except Exception as e:
-            # Handle any unexpected errors
-            logger.error(f"Unexpected error: {str(e)}", exc_info=True)
-            return Response({'error': f'An error occurred while downloading the book: {str(e)}'}, status=500)
-
+            return Response({'error': f'An error occurred: {str(e)}'}, status=500)
 
 # ePub Parser: Use python-epub-reader to parse and render ePub files.
 # Book Reader API: Provide API endpoints for the user to read the book.

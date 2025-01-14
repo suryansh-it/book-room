@@ -4,8 +4,8 @@ import '../models/book.dart';
 class BookService {
   final Dio _dio = Dio(BaseOptions(
     baseUrl: "http://10.0.2.2:8011/api/books/", // Update to match backend
-    connectTimeout: Duration(milliseconds: 5000), // Specify as Duration
-    receiveTimeout: Duration(milliseconds: 5000), // Specify as Duration
+    // connectTimeout: Duration(milliseconds: 5000), // Specify as Duration
+    // receiveTimeout: Duration(milliseconds: 5000), // Specify as Duration
   ));
 
   /// Searches for books matching the given query string.
@@ -28,14 +28,19 @@ class BookService {
         // Map the response data to a list of Book objects
         return booksData.map((book) {
           try {
-            // Parse file size safely from string
-            double parseFileSize(String? size) {
-              if (size == null || size.isEmpty) return 0.0;
+            // Parse file size safely from various types (String or double)
+            double parseFileSize(dynamic size) {
+              if (size == null) return 0.0;
               try {
-                return double.parse(size.replaceAll(RegExp(r'[^0-9.]'), ''));
+                if (size is String) {
+                  return double.parse(size.replaceAll(RegExp(r'[^0-9.]'), ''));
+                } else if (size is double || size is int) {
+                  return size.toDouble();
+                }
               } catch (_) {
-                return 0.0;
+                // Ignore errors and return default value
               }
+              return 0.0;
             }
 
             // Construct the full download link
