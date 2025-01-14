@@ -29,9 +29,6 @@ from time import sleep
 
 
 
-service = Service("D:/Dev/chromedriver-win64/chromedriver.exe")
-driver = webdriver.Chrome(service=service)
-
 
 # Use requests to send an HTTP request to Library Genesis.
 # Extract book information (title, author, download link, etc.) from the response.
