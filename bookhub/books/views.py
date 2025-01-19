@@ -275,7 +275,7 @@ class BookDownloadView(APIView):
             # Extract the final download URL
             logger.info(f"Final download URL: {final_download_url}")
 
-            final_url = f"https://libgen.li{final_download_url}"
+            final_url = f"https://libgen.li/{final_download_url}"
 
             # Download the ePub file
             download_response = session.get(final_url, stream=True)
