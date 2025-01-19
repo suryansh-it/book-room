@@ -131,26 +131,67 @@ class BookSearchView(APIView):
             rows = table.find_all('tr')[1:]  # Skip header row
             for row in rows:
                 columns = row.find_all('td')
-                if len(columns) > 8:  # Ensure sufficient columns
-                    file_type = columns[6].text.strip()
-                    libgen_link = None
-                    download_links = columns[8].find_all('a', {'data-original-title': 'libgen'})
-                    if download_links:
-                        libgen_link = download_links[0]['href']
+                # Ensure `columns` contains all <td> elements in the row
+                
+                if len(columns) > 8:  # Ensure there are enough columns
+                    try:
+                        # Extract title from the first <td>
+                        title_author_td = columns[0]
+                        title = title_author_td.find('a').text.strip() if title_author_td.find('a') else 'N/A'
 
-                    book_info = {
-                        'id': columns[0].text.strip(),
-                        'author': columns[1].text.strip(),
-                        'title': columns[2].a.text.strip() if columns[2].a else 'N/A',
-                        'publisher': columns[3].text.strip(),
-                        'year': columns[4].text.strip(),
-                        'language': columns[5].text.strip(),
-                        'file_type': file_type,
-                        'file_size': float(re.sub(r'[^0-9.]', '', columns[7].text.strip()) or 0),
-                        'download_link': libgen_link  # Save but do not send to frontend
-                    }
+                        # Extract author
+                        author = columns[1].text.strip() if len(columns) > 1 else 'Unknown'
 
-                    books.append(book_info)
+                        # Extract publisher, year, language
+                        publisher = columns[2].text.strip() if len(columns) > 2 else 'Unknown'
+                        year = columns[3].text.strip() if len(columns) > 3 else 'Unknown'
+                        language = columns[4].text.strip() if len(columns) > 4 else 'Unknown'
+
+                        # Extract file size and file type
+                        file_size_td = columns[6]
+                        file_size_match = re.search(r'([\d.]+)\s?(KB|MB|GB)', file_size_td.text.strip())
+                        file_size = 0.0
+                        if file_size_match:
+                            file_size_value = float(file_size_match.group(1))  # Extract numeric part
+                            file_size_unit = file_size_match.group(2)  # Extract unit (KB, MB, GB)
+                            if file_size_unit == 'KB':
+                                file_size = file_size_value / 1024  # Convert KB to MB
+                            elif file_size_unit == 'GB':
+                                file_size = file_size_value * 1024  # Convert GB to MB
+                            else:
+                                file_size = file_size_value  # MB remains as is
+
+                        file_type_td = columns[7]
+                        file_type = file_type_td.text.strip() if len(columns) > 7 else 'Unknown'
+
+                        # Extract the libgen download link
+                        download_td = columns[8]
+                        libgen_link = None
+                        download_links = download_td.find_all('a')
+                        for link in download_links:
+                            # Check if the 'data-original-title' attribute equals 'libgen' (case-insensitive)
+                            if link.get('data-original-title', '').strip().lower() == 'libgen':
+                                libgen_link = link.get('href')  # Extract the href attribute
+                                break  # Stop after finding the first libgen link
+
+                        # Construct the book info dictionary
+                        book_info = {
+                            'title': title,
+                            'author': author,
+                            'publisher': publisher,
+                            'year': year,
+                            'language': language,
+                            'file_type': file_type,
+                            'file_size': file_size,  # Always in MB
+                            'download_link': libgen_link
+                        }
+
+                        print("Parsed Book Info:", book_info)
+                        books.append(book_info)  # Only append if parsing succeeds
+                    except Exception as e:
+                        logging.error(f"Error parsing book info: {e}")
+                        continue
+
         except Exception as e:
             logging.error(f"Error while parsing response: {e}", exc_info=True)
             return Response({'error': 'Failed to parse search results'}, status=500)
