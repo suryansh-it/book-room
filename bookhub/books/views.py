@@ -165,14 +165,30 @@ class BookSearchView(APIView):
                         file_type = file_type_td.text.strip() if len(columns) > 7 else 'Unknown'
 
                         # Extract the libgen download link
+                        
                         download_td = columns[8]
-                        libgen_link = None
-                        download_links = download_td.find_all('a')
-                        for link in download_links:
-                            # Check if the 'data-original-title' attribute equals 'libgen' (case-insensitive)
-                            if link.get('data-original-title', '').strip().lower() == 'libgen':
-                                libgen_link = link.get('href')  # Extract the href attribute
-                                break  # Stop after finding the first libgen link
+                        nobr_tag = download_td.find('nobr')
+                        
+                        if nobr_tag:
+                            # Find the first 'a' tag within the 'nobr' tag 
+                            first_a_tag = nobr_tag.find('a') 
+
+                            if first_a_tag:
+                                # Extract the 'href' attribute from the first 'a' tag
+                                libgen_link = first_a_tag.get('href')
+                            else:
+                                libgen_link = None
+                        else:
+                            libgen_link = None
+
+                        # libgen_link = None
+                        # nobr = download_td.find('nobr')
+                        # download_links = nobr.find_all('a')
+                        # for link in download_links:
+                        #     # Check if the 'data-original-title' attribute equals 'libgen' (case-insensitive)
+                        #     if link.get('data-original-title', '').strip().lower() == 'libgen':
+                        #         libgen_link = link.get('href')  # Extract the href attribute
+                        #         break  # Stop after finding the first libgen link
 
                         # Construct the book info dictionary
                         book_info = {
