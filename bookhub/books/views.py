@@ -27,8 +27,10 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from time import sleep
 from .serializers import BookSerializer
-
-
+from django.http import StreamingHttpResponse
+from requests.adapters import HTTPAdapter
+from urllib3 import Retry
+from urllib.parse import unquote
 
 
 # Use requests to send an HTTP request to Library Genesis.
@@ -228,8 +230,9 @@ class BookDownloadView(APIView):
     This view fetches an intermediate page, triggers the final download,
     saves the book to the database, and schedules further processing with a Celery task.
     """
+
     @staticmethod
-    def fetch_and_download_book(libgen_link):
+    def fetch_and_download_book(libgen_link,title):
         """
         Fetch the intermediate page, locate the 'GET' button, and download the ePub file.
 
@@ -242,24 +245,21 @@ class BookDownloadView(APIView):
         Raises:
             Exception: If any step in the process fails.
         """
-        try:
-            # Start a session for HTTP requests
-            session = requests.Session()
 
-            # Full intermediate page URL
+        try:
+            session = requests.Session()
+            session.mount('http://', HTTPAdapter(max_retries=3))
+            session.mount('https://', HTTPAdapter(max_retries=3))
+
             intermediate_url = f"https://libgen.li{libgen_link}"
 
-            # Fetch the intermediate page
             logger.info(f"Fetching intermediate page: {intermediate_url}")
             response = session.get(intermediate_url, timeout=10)
             if response.status_code != 200:
                 logger.error(f"Failed to fetch intermediate page: {response.status_code}")
                 raise Exception("Failed to fetch intermediate page")
 
-            # Parse the intermediate page to find the 'GET' button
             soup = BeautifulSoup(response.content, 'html.parser')
-            
-            # Find the 'GET' button within the table
             table = soup.find('table', id='main')
             if table:
                 get_button = table.find('a', string='GET')
@@ -271,57 +271,82 @@ class BookDownloadView(APIView):
             else:
                 logger.error("Table with ID 'main' not found on intermediate page")
                 raise Exception("Table with ID 'main' not found")
-            
-            # Extract the final download URL
+
             logger.info(f"Final download URL: {final_download_url}")
 
-            final_url = f"https://libgen.li/{final_download_url}"
+            final_url= f"https://libgen.li/{final_download_url}"
 
-            # Download the ePub file
-            download_response = session.get(final_url, stream=True)
-            if download_response.status_code == 200:
-                # Define the local download directory
-                download_dir = os.path.join(settings.MEDIA_ROOT, 'offline_books')
-                os.makedirs(download_dir, exist_ok=True)
+            # Follow redirects (important change)
+            final_response = session.get(final_url, stream=True, allow_redirects=True, timeout=30)
 
-                # Sanitize and create the filename
-                sanitized_filename = os.path.basename(final_download_url.split('?')[0])
-                local_path = os.path.join(download_dir, sanitized_filename)
+            final_response.raise_for_status()
 
-                # Save the downloaded file locally
-                logger.info(f"Saving file to: {local_path}")
-                with open(local_path, 'wb') as f:
-                    for chunk in download_response.iter_content(chunk_size=1024):
-                        if chunk:
-                            f.write(chunk)
+            def file_iterator(response):
+                yield from response.iter_content(chunk_size=8192)
 
-                return local_path
-            else:
-                logger.error(f"Failed to download file: {download_response.status_code}")
-                raise Exception("Failed to download file")
+            content_disposition = final_response.headers.get('Content-Disposition')
+            filename = None
 
+            if content_disposition:
+                filename_match = re.search(r"filename\*=UTF-8''(.+)", content_disposition)
+                if filename_match:
+                    filename = unquote(filename_match.group(1))  # Decode the filename
+                else:
+                    filename_match = re.search(r"filename=\"(.+)\"", content_disposition)
+                    if filename_match:
+                        filename = filename_match.group(1)
+
+            if not filename:
+                # Fallback: Generate filename from title (improved)
+                filename_parts = [re.sub(r'[\\/*?:"<>|]', "", part) for part in title.split()]  # Sanitize each word
+                filename = f"{'-'.join(filename_parts)}.epub"
+                logger.warning(f"Content-Disposition header missing. Using fallback filename: {filename}")
+
+            streaming_response = StreamingHttpResponse(
+                file_iterator(final_response),
+                content_type=final_response.headers.get('Content-Type'),
+            )
+            streaming_response['Content-Length'] = final_response.headers.get('Content-Length')
+            streaming_response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return streaming_response
+
+        except requests.exceptions.RequestException as e:
+            logger.exception(f"Request Exception in fetch_and_download_book: {e}")
+            raise
         except Exception as e:
-            logger.error(f"Error in fetch_and_download_book: {str(e)}")
+            logger.exception(f"Error in fetch_and_download_book: {e}")
             raise
 
     def post(self, request):
-        """
-        Handles the book download request.
-
-        Extracts the required information from the request and initiates the download process.
-        """
         libgen_link = request.data.get('libgen_link', '').strip()
         title = request.data.get('title', '').strip()
         author = request.data.get('author', '').strip()
 
-        if not libgen_link or not title:
-            return Response({'error': 'Download URL and title are required'}, status=400)
+        if not libgen_link or not title or not author:
+            return Response({'error': 'Download URL, title, and author are required'}, status=400)
 
         try:
-            # Download the book using the extracted libgen link
-            local_path = self.fetch_and_download_book(libgen_link)
+            streaming_response = self.fetch_and_download_book(libgen_link, title)
 
-            # Create a new book entry in the database
+            download_dir = os.path.join(settings.MEDIA_ROOT, 'offline_books')
+            os.makedirs(download_dir, exist_ok=True)
+
+            # Ensure filename extraction even if Content-Disposition is missing
+            filename = streaming_response.get('Content-Disposition', "").split('filename="')[1][:-1] if 'Content-Disposition' in streaming_response else ""
+
+            local_path = os.path.join(download_dir, filename)
+
+            with open(local_path, 'wb') as f:
+                for chunk in streaming_response.streaming_content:
+                    f.write(chunk)
+
+            if not filename:
+                # If filename extraction failed (or Content-Disposition is missing), use a generic fallback with a timestamp
+                
+                local_path = os.path.join(download_dir, f"generic_download.epub")
+
+
+
             sanitized_filename = os.path.basename(local_path)
             book = Book.objects.create(
                 user=request.user,
@@ -332,8 +357,7 @@ class BookDownloadView(APIView):
                 file_size=f'{os.path.getsize(local_path) / 1024:.2f} KB'
             )
 
-            # Schedule post-download processing (e.g., metadata extraction) with Celery
-            download_book.delay(libgen_link, local_path)
+            download_book.delay(libgen_link, local_path)  # Celery task
 
             return Response({
                 'message': 'Book downloaded successfully',
@@ -342,6 +366,7 @@ class BookDownloadView(APIView):
             }, status=201)
 
         except Exception as e:
+            logger.exception(f"Error in BookDownloadView.post: {e}")  # Log the full traceback
             return Response({'error': f'An error occurred: {str(e)}'}, status=500)
 
 
