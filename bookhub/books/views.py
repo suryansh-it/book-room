@@ -231,47 +231,61 @@ class BookDownloadView(APIView):
     @staticmethod
     def fetch_and_download_book(libgen_link):
         """
-    Fetch the intermediate page, locate the 'GET' button, and download the ePub file.
+        Fetch the intermediate page, locate the 'GET' button, and download the ePub file.
 
-    Args:
-        download_url (str): The URL of the intermediate page with the 'GET' button.
+        Args:
+            libgen_link (str): The URL of the intermediate page with the 'GET' button.
 
-    Returns:
-        str: The local path of the downloaded file.
+        Returns:
+            str: The local path of the downloaded file.
 
-    Raises:
-        Exception: If any step in the process fails. """
+        Raises:
+            Exception: If any step in the process fails.
+        """
         try:
             # Start a session for HTTP requests
             session = requests.Session()
 
+            # Full intermediate page URL
+            intermediate_url = f"https://libgen.li{libgen_link}"
+
             # Fetch the intermediate page
-            logger.info(f"Fetching intermediate page: {libgen_link}")
-            response = session.get(libgen_link, timeout=10)
+            logger.info(f"Fetching intermediate page: {intermediate_url}")
+            response = session.get(intermediate_url, timeout=10)
             if response.status_code != 200:
                 logger.error(f"Failed to fetch intermediate page: {response.status_code}")
                 raise Exception("Failed to fetch intermediate page")
 
-            # Parse the page to find the 'GET' button
+            # Parse the intermediate page to find the 'GET' button
             soup = BeautifulSoup(response.content, 'html.parser')
-            get_button = soup.find('a', text='GET')
-            if not get_button:
-                logger.error("GET button not found on intermediate page")
-                raise Exception("GET button not found")
-
+            
+            # Find the 'GET' button within the table
+            table = soup.find('table', id='main')
+            if table:
+                get_button = table.find('a', string='GET')
+                if get_button:
+                    final_download_url = get_button['href']
+                else:
+                    logger.error("GET button not found on intermediate page")
+                    raise Exception("GET button not found")
+            else:
+                logger.error("Table with ID 'main' not found on intermediate page")
+                raise Exception("Table with ID 'main' not found")
+            
             # Extract the final download URL
-            final_download_url = get_button['href']
             logger.info(f"Final download URL: {final_download_url}")
 
+            final_url = f"https://libgen.li{final_download_url}"
+
             # Download the ePub file
-            download_response = session.get(final_download_url, stream=True)
+            download_response = session.get(final_url, stream=True)
             if download_response.status_code == 200:
                 # Define the local download directory
                 download_dir = os.path.join(settings.MEDIA_ROOT, 'offline_books')
                 os.makedirs(download_dir, exist_ok=True)
 
                 # Sanitize and create the filename
-                sanitized_filename = os.path.basename(final_download_url)
+                sanitized_filename = os.path.basename(final_download_url.split('?')[0])
                 local_path = os.path.join(download_dir, sanitized_filename)
 
                 # Save the downloaded file locally
@@ -291,7 +305,11 @@ class BookDownloadView(APIView):
             raise
 
     def post(self, request):
-        # Extract download link and other details
+        """
+        Handles the book download request.
+
+        Extracts the required information from the request and initiates the download process.
+        """
         libgen_link = request.data.get('libgen_link', '').strip()
         title = request.data.get('title', '').strip()
         author = request.data.get('author', '').strip()
@@ -300,7 +318,10 @@ class BookDownloadView(APIView):
             return Response({'error': 'Download URL and title are required'}, status=400)
 
         try:
+            # Download the book using the extracted libgen link
             local_path = self.fetch_and_download_book(libgen_link)
+
+            # Create a new book entry in the database
             sanitized_filename = os.path.basename(local_path)
             book = Book.objects.create(
                 user=request.user,
@@ -311,6 +332,7 @@ class BookDownloadView(APIView):
                 file_size=f'{os.path.getsize(local_path) / 1024:.2f} KB'
             )
 
+            # Schedule post-download processing (e.g., metadata extraction) with Celery
             download_book.delay(libgen_link, local_path)
 
             return Response({
@@ -321,6 +343,7 @@ class BookDownloadView(APIView):
 
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=500)
+
 
 # ePub Parser: Use python-epub-reader to parse and render ePub files.
 # Book Reader API: Provide API endpoints for the user to read the book.
