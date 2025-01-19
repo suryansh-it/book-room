@@ -26,6 +26,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from time import sleep
+from .serializers import BookSerializer
 
 
 
@@ -52,8 +53,10 @@ logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %
 class BookSearchView(APIView):
     """🔍 Allows users to search for books on Library Genesis with robust error handling."""
 
-    SITE_MIRRORS = [
+    SITE_MIRRORS = [        
+        
         'https://libgen.li',  # Updated mirror URL base
+        'https://libgen.is',
     ]
     TIMEOUT = 10  # Timeout for each request (in seconds)
     RETRY_COUNT = 3  # Number of retries for each mirror
@@ -62,6 +65,15 @@ class BookSearchView(APIView):
         query = request.query_params.get('q', '').strip()  # Extract query parameter
         if not query:
             return Response({'error': 'Search query is required'}, status=400)
+
+                # Filter books that match the search query and are of type 'epub'
+        books = Book.objects.filter(
+            file_type='epub',  # Only ePub files
+            title__icontains=query  # Case-insensitive search in the title
+        )
+
+        # Serialize the filtered books
+        serializer = BookSerializer(books, many=True)
 
         # Generate a unique cache key
         cache_key = f'search_results_{query}_{hash(tuple(self.SITE_MIRRORS))}'
@@ -160,7 +172,7 @@ class BookDownloadView(APIView):
     saves the book to the database, and schedules further processing with a Celery task.
     """
     @staticmethod
-    def fetch_and_download_book(download_url):
+    def fetch_and_download_book(libgen_link):
         """
     Fetch the intermediate page, locate the 'GET' button, and download the ePub file.
 
@@ -177,8 +189,8 @@ class BookDownloadView(APIView):
             session = requests.Session()
 
             # Fetch the intermediate page
-            logger.info(f"Fetching intermediate page: {download_url}")
-            response = session.get(download_url, timeout=10)
+            logger.info(f"Fetching intermediate page: {libgen_link}")
+            response = session.get(libgen_link, timeout=10)
             if response.status_code != 200:
                 logger.error(f"Failed to fetch intermediate page: {response.status_code}")
                 raise Exception("Failed to fetch intermediate page")
@@ -223,15 +235,15 @@ class BookDownloadView(APIView):
 
     def post(self, request):
         # Extract download link and other details
-        download_url = request.data.get('libgen_link', '').strip()
+        libgen_link = request.data.get('libgen_link', '').strip()
         title = request.data.get('title', '').strip()
         author = request.data.get('author', '').strip()
 
-        if not download_url or not title:
+        if not libgen_link or not title:
             return Response({'error': 'Download URL and title are required'}, status=400)
 
         try:
-            local_path = self.fetch_and_download_book(download_url)
+            local_path = self.fetch_and_download_book(libgen_link)
             sanitized_filename = os.path.basename(local_path)
             book = Book.objects.create(
                 user=request.user,
@@ -242,7 +254,7 @@ class BookDownloadView(APIView):
                 file_size=f'{os.path.getsize(local_path) / 1024:.2f} KB'
             )
 
-            download_book.delay(download_url, local_path)
+            download_book.delay(libgen_link, local_path)
 
             return Response({
                 'message': 'Book downloaded successfully',
