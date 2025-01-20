@@ -383,6 +383,22 @@ class BookDownloadView(APIView):
 # Frontend UI: Use JavaScript to load the ePub file and present it on the user interface.
 
 
+class UserLibraryView(APIView):
+    """📚 Displays the user's downloaded books."""
+    # permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        books = Book.objects.filter(user=user)
+
+        if not books.exists():
+            return Response({'message': 'No books in your library.'}, status=404)
+
+        serializer = BookSerializer(books, many=True)
+        return Response({'library': serializer.data}, status=200)
+
+
+
 class BookReadView(APIView):
     """📖 Allows users to read an ePub book with lazy loading and pagination."""
     permission_classes = [permissions.IsAuthenticated]

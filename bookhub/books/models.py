@@ -21,6 +21,9 @@ class Book(models.Model):
     download_date = models.DateTimeField(auto_now_add=True)
     local_path = models.CharField(max_length=500, blank=True, null=True)  # Path for offline storage
 
+    def __str__(self):
+        return self.title
+
 
 class Chapter(models.Model):
     book = models.ForeignKey(Book, related_name="chapters", on_delete=models.CASCADE)
