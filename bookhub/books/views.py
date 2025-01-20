@@ -151,17 +151,23 @@ class BookSearchView(APIView):
 
                         # Extract file size and file type
                         file_size_td = columns[6]
-                        file_size_match = re.search(r'([\d.]+)\s?(KB|MB|GB)', file_size_td.text.strip())
-                        file_size = 0.0
+                        file_size_match = re.search(r'([\d.]+)\s?(KB|MB|GB|kB)', file_size_td.text.strip())
+                        file_size = "Unknown"  # Default value in case the file size is not found
                         if file_size_match:
-                            file_size_value = float(file_size_match.group(1))  # Extract numeric part
-                            file_size_unit = file_size_match.group(2)  # Extract unit (KB, MB, GB)
-                            if file_size_unit == 'KB':
-                                file_size = file_size_value / 1024  # Convert KB to MB
-                            elif file_size_unit == 'GB':
-                                file_size = file_size_value * 1024  # Convert GB to MB
-                            else:
-                                file_size = file_size_value  # MB remains as is
+                            file_size = file_size_match.group(0)  # Keep the original size with its unit (e.g., "1.5 MB")
+                        # Now, `file_size` will contain the size along with its format (e.g., "1.5 KB", "2.3 MB", or "0.9 GB")
+                        
+                        
+                        # file_size = 0.0
+                        # if file_size_match:
+                        #     file_size_value = float(file_size_match.group(1))  # Extract numeric part
+                        #     file_size_unit = file_size_match.group(2)  # Extract unit (KB, MB, GB)
+                        #     if file_size_unit == 'KB':
+                        #         file_size = file_size_value / 1024  # Convert KB to MB
+                        #     elif file_size_unit == 'GB':
+                        #         file_size = file_size_value * 1024  # Convert GB to MB
+                        #     else:
+                        #         file_size = file_size_value  # MB remains as is
 
                         file_type_td = columns[7]
                         file_type = file_type_td.text.strip() if len(columns) > 7 else 'Unknown'
@@ -192,20 +198,22 @@ class BookSearchView(APIView):
                         #         libgen_link = link.get('href')  # Extract the href attribute
                         #         break  # Stop after finding the first libgen link
 
-                        # Construct the book info dictionary
-                        book_info = {
-                            'title': title,
-                            'author': author,
-                            'publisher': publisher,
-                            'year': year,
-                            'language': language,
-                            'file_type': file_type,
-                            'file_size': file_size,  # Always in MB
-                            'download_link': libgen_link
-                        }
+                        # Filter for ePub files only
+                        if file_type.lower() == 'epub':
+                            # Construct the book info dictionary
+                            book_info = {
+                                'title': title,
+                                'author': author,
+                                'publisher': publisher,
+                                'year': year,
+                                'language': language,
+                                'file_type': file_type,
+                                'file_size': file_size,  # Always in MB
+                                'download_link': libgen_link
+                            }
 
-                        print("Parsed Book Info:", book_info)
-                        books.append(book_info)  # Only append if parsing succeeds
+                            print("Parsed Book Info:", book_info)
+                            books.append(book_info)  # Only append if parsing succeeds
                     except Exception as e:
                         logging.error(f"Error parsing book info: {e}")
                         continue

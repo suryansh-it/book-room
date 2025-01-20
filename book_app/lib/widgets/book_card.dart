@@ -170,7 +170,7 @@ class BookCard extends StatelessWidget {
           children: [
             // Display formatted title
             Text(
-              getFormattedTitle(book.id),
+              getFormattedTitle(book.title),
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
@@ -184,13 +184,14 @@ class BookCard extends StatelessWidget {
             // Conditional spacing for details
             if (book.publisher != null ||
                 book.year != null ||
-                book.language != null)
+                book.language != null ||
+                book.fileSize != null)
               const SizedBox(height: 8),
 
             // Display "Published by" only if available
             if (book.publisher != null)
               Text(
-                '${book.publisher}',
+                'Publisher: ${book.publisher}',
                 style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
 
@@ -205,6 +206,13 @@ class BookCard extends StatelessWidget {
             if (book.language != null)
               Text(
                 '${book.language}',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+
+            // Display "filesize" only if available
+            if (book.fileSize != null)
+              Text(
+                '${book.fileSize}',
                 style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
 
