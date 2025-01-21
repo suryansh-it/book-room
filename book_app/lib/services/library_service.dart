@@ -8,7 +8,7 @@ class LibraryService {
   Future<List<Map<String, dynamic>>> getDownloadedBooks() async {
     final response = await http.get(
       Uri.parse('$baseUrl/userlibrary/'),
-      headers: {'Authorization': 'Bearer YOUR_TOKEN'},
+      // headers: {'Authorization': 'Bearer YOUR_TOKEN'},
     );
     if (response.statusCode == 200) {
       final List<dynamic> data = jsonDecode(response.body);

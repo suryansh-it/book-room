@@ -417,7 +417,7 @@ class UserLibraryView(APIView):
         if book.user != user:
             return Response({'error': 'You cannot access books that do not belong to you.'}, status=403)
 
-        book_file_path = os.path.join(settings.MEDIA_ROOT, book.content.split('/')[1])
+        book_file_path = os.path.join(settings.MEDIA_ROOT, book.local_path)
 
         if not os.path.exists(book_file_path):
             return Response({'error': 'The requested book is not available offline.'}, status=404)
