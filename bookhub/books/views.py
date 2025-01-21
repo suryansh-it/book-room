@@ -8,7 +8,7 @@ from bookhub.celery import download_book
 from django.core.cache import cache
 from bs4 import BeautifulSoup
 from rest_framework import status, permissions
-from django.http import HttpResponse
+from django.http import HttpResponse, FileResponse
 from django.shortcuts import get_object_or_404
 from .utils import save_chapters_to_db
 from django.conf import settings
@@ -384,10 +384,13 @@ class BookDownloadView(APIView):
 
 
 class UserLibraryView(APIView):
-    """📚 Displays the user's downloaded books."""
-    # permission_classes = [permissions.IsAuthenticated]
+    """📚 Displays and allows access to the user's downloaded books."""
+    # permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        """
+        Retrieves a list of the user's downloaded books from the database.
+        """
         user = request.user
         books = Book.objects.filter(user=user)
 
@@ -396,6 +399,41 @@ class UserLibraryView(APIView):
 
         serializer = BookSerializer(books, many=True)
         return Response({'library': serializer.data}, status=200)
+
+    def access(self, request, book_id):
+        """
+        Provides access to a specific downloaded book based on its ID.
+        - Checks if the book exists and belongs to the user.
+        - Determines the book's file path from the database.
+        - Validates the file path's existence and accessibility.
+        - Returns an appropriate HTTP response:
+            - FileResponse for valid offline books.
+            - 404 Not Found for non-existent or inaccessible books.
+            - 403 Forbidden for books not belonging to the user.
+        """
+        user = request.user
+        book = get_object_or_404(Book, pk=book_id)
+
+        if book.user != user:
+            return Response({'error': 'You cannot access books that do not belong to you.'}, status=403)
+
+        book_file_path = os.path.join(settings.MEDIA_ROOT, book.content.split('/')[1])
+
+        if not os.path.exists(book_file_path):
+            return Response({'error': 'The requested book is not available offline.'}, status=404)
+
+        # # File type detection using magic library (optional)
+        # mime_type = None
+        # try:
+        #     mime_type = magic.Magic(mime=True).from_file(book_file_path)
+        # except Exception as e:
+        #     print(f"Error detecting file type: {e}")
+
+        # Return FileResponse with appropriate content type (if detected)
+        response = FileResponse(open(book_file_path, 'rb'))
+        # if mime_type:
+        #     response['Content-Type'] = mime_type
+        return response
 
 
 

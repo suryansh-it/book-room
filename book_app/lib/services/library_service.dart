@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 
 class LibraryService {
   final String baseUrl =
-      'http://10.0.2.2:8011/api/books/'; // Replace with your backend URL
+      'http://10.0.2.2:8011/api/books'; // Replace with your backend URL
 
   Future<List<Map<String, dynamic>>> getDownloadedBooks() async {
     final response = await http.get(

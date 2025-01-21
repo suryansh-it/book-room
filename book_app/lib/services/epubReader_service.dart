@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 
 class EpubReaderService {
   final String _baseUrl =
-      "http://10.0.2.2:8011/api/books/"; // Replace with your actual API URL
+      "http://10.0.2.2:8011"; // Replace with your actual API URL
 
   /// Fetch a specific chapter and section from an ePub book.
   ///
