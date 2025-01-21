@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-class EpubService {
+class EpubReaderService {
   final String _baseUrl =
-      "https://your-api-url.com"; // Replace with your actual API URL
+      "http://10.0.2.2:8011/api/books/"; // Replace with your actual API URL
 
   /// Fetch a specific chapter and section from an ePub book.
   ///
@@ -12,7 +12,8 @@ class EpubService {
   /// - `chaptersPerPage`: Number of chapters to fetch at once (default: 1).
   /// - `sectionPage`: The section number within the chapter (default: 1).
   /// - `sectionSize`: Number of characters per section (default: 500).
-  Future<Map<String, dynamic>> fetchEpubChapter({
+  /// Fetch chapters and sections for a given book
+  Future<Map<String, dynamic>> fetchEpubContent({
     required int bookId,
     int chapterPage = 1,
     int chaptersPerPage = 1,
@@ -20,20 +21,19 @@ class EpubService {
     int sectionSize = 500,
   }) async {
     final url = Uri.parse(
-        "$_baseUrl/api/books/$bookId/read?chapter=$chapterPage&chapters_per_page=$chaptersPerPage&section=$sectionPage&section_size=$sectionSize");
+        "$_baseUrl/books/read/$bookId/?chapter=$chapterPage&chapters_per_page=$chaptersPerPage&section=$sectionPage&section_size=$sectionSize");
 
     try {
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        return data;
+        return json.decode(response.body) as Map<String, dynamic>;
       } else {
         throw Exception(
-            'Failed to load chapter: ${response.statusCode}, ${response.body}');
+            'Failed to fetch eBook content: ${response.statusCode}, ${response.body}');
       }
     } catch (e) {
-      throw Exception('Error fetching chapter: $e');
+      throw Exception('Error fetching content: $e');
     }
   }
 }

@@ -56,3 +56,26 @@ class Book {
         'is_downloaded': isDownloaded,
       };
 }
+
+class Chapter {
+  final String title;
+  final String sectionContent;
+  final int currentSectionPage;
+  final int totalSections;
+
+  Chapter({
+    required this.title,
+    required this.sectionContent,
+    required this.currentSectionPage,
+    required this.totalSections,
+  });
+
+  factory Chapter.fromJson(Map<String, dynamic> json) {
+    return Chapter(
+      title: json['chapter_title'],
+      sectionContent: json['section_content'],
+      currentSectionPage: json['current_section_page'],
+      totalSections: json['total_sections'],
+    );
+  }
+}
