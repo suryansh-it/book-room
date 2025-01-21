@@ -16,39 +16,49 @@ class HomeScreen extends StatelessWidget {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Welcome to the Book App'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.logout),
+ @override
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(
+      title: Text('Welcome to the Book App'),
+      actions: [
+        IconButton(
+          icon: Icon(Icons.logout),
+          onPressed: () {
+            Navigator.pushReplacementNamed(context, '/login');
+          },
+        ),
+      ],
+    ),
+    body: Padding(
+      padding: EdgeInsets.all(16.0),
+      child: Column(
+        children: [
+          TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              labelText: 'Search for books',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: () => _searchBooks(context),
+            child: Text('Search'),
+          ),
+          SizedBox(height: 20),
+          ElevatedButton(
             onPressed: () {
-              Navigator.pushReplacementNamed(context, '/login');
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => UserLibraryScreen()),
+              );
             },
+            child: Text('Go to My Library'),
           ),
         ],
       ),
-      body: Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                labelText: 'Search for books',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () => _searchBooks(context),
-              child: Text('Search'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+    ),
+  );
 }
+
