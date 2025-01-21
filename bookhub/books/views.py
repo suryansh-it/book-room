@@ -401,7 +401,7 @@ class UserLibraryView(APIView):
 
 class BookReadView(APIView):
     """📖 Allows users to read an ePub book with lazy loading and pagination."""
-    permission_classes = [permissions.IsAuthenticated]
+    # permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, book_id):
         user = request.user
