@@ -31,6 +31,7 @@ from django.http import StreamingHttpResponse
 from requests.adapters import HTTPAdapter
 from urllib3 import Retry
 from urllib.parse import unquote
+from rest_framework.permissions import IsAuthenticated
 
 
 # Use requests to send an HTTP request to Library Genesis.
@@ -385,7 +386,7 @@ class BookDownloadView(APIView):
 
 class UserLibraryView(APIView):
     """📚 Displays and allows access to the user's downloaded books."""
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         """
