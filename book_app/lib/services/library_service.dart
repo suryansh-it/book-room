@@ -7,7 +7,6 @@ class LibraryService {
   final Dio _dio = Dio(BaseOptions(baseUrl: "http://10.0.2.2:8011/api/books/"));
   final AuthService _authService = AuthService();
 
-  // **Improved getDownloadedBooks:**
   Future<List<Map<String, dynamic>>> getDownloadedBooks() async {
     final token =
         await _authService.getlogin(); // Assuming AuthService provides this
@@ -20,15 +19,22 @@ class LibraryService {
     final response = await _dio.get('userlibrary/');
 
     if (response.statusCode == 200) {
-      // Check if response.data is a List before casting
-      if (response.data is List) {
-        return response.data.cast<Map<String, dynamic>>();
+      // Access the 'library' key from the response data
+      if (response.data is Map && response.data.containsKey('library')) {
+        final libraryData = response.data['library'];
+
+        // Now check if libraryData is a List
+        if (libraryData is List) {
+          return libraryData.cast<Map<String, dynamic>>();
+        } else {
+          throw Exception('Unexpected format: "library" is not a list.');
+        }
       } else {
-        throw Exception('Unexpected response format for downloaded books.');
+        throw Exception('Unexpected format: missing "library" key.');
       }
     } else {
       throw Exception(
-          'Failed to fetch downloaded books: ${response.statusCode}'); // Include status code for debugging
+          'Failed to fetch downloaded books: ${response.statusCode}');
     }
   }
 
