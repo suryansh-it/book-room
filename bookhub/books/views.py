@@ -401,31 +401,33 @@ class UserLibraryView(APIView):
 
     def get(self, request):
         """
-        Retrieves a list of the user's downloaded books from the database
-        and ensures only locally available books are displayed.
-        If a book is missing from the local path, it is removed from the database.
+        Retrieves a list of the user's downloaded books.
+        Removes books with missing local files from the database.
         """
         user = request.user
         books = Book.objects.filter(user=user)
 
-        # Remove books without a valid file
-        for book in books:
-            if not book.local_path or not os.path.exists(os.path.join(settings.MEDIA_ROOT, book.local_path)):
-                book.delete()
-
-        # Refresh the books queryset
-        books = Book.objects.filter(user=user)
-
-        # Filter books that exist in the local `offline_books` folder
+        books_to_delete = []  # Store books to delete outside the loop
         valid_books = []
+
         for book in books:
-            if book.local_path:  # Check if local_path is not None
-                book_file_path = os.path.join(settings.MEDIA_ROOT, book.local_path)
-                if os.path.exists(book_file_path):
-                    valid_books.append(book)
-            # else:
-            #     # Remove the book from the database if the file is missing
-            #     book.delete()
+            if not book.local_path:
+                print(f"Book '{book.title}' has no local_path. Deleting.")
+                books_to_delete.append(book.pk)  # Store PK for efficient deletion
+                continue #skip current iteration
+
+            book_file_path = os.path.join(settings.MEDIA_ROOT, book.local_path)
+            if not os.path.exists(book_file_path):
+                print(f"File not found for book '{book.title}' at: {book_file_path}. Deleting.")
+                books_to_delete.append(book.pk)  # Store PK for efficient deletion
+                continue #skip current iteration
+
+            valid_books.append(book)
+
+        # Bulk delete books outside the loop for efficiency
+        if books_to_delete:
+            Book.objects.filter(pk__in=books_to_delete).delete()
+            print(f"Deleted {len(books_to_delete)} books with missing files.")
 
         if not valid_books:
             return Response({'message': 'No books in your library.'}, status=404)
@@ -434,25 +436,16 @@ class UserLibraryView(APIView):
         return Response({'library': serializer.data}, status=200)
 
     def access(self, request, book_id):
-        """
-        Provides access to a specific downloaded book based on its ID.
-        - Ensures the book exists in the local `offline_books` folder.
-        - Removes the book from the database if the file is missing.
-        """
+        """Provides access to a specific downloaded book."""
         user = request.user
-        book = get_object_or_404(Book, pk=book_id)
-
-        if book.user != user:
-            return Response({'error': 'You cannot access books that do not belong to you.'}, status=403)
+        book = get_object_or_404(Book, pk=book_id, user=user) #check user at get_object_or_404 level
 
         book_file_path = os.path.join(settings.MEDIA_ROOT, book.local_path)
 
         if not os.path.exists(book_file_path):
-            # Remove the book from the database
             book.delete()
             return Response({'error': 'The requested book is not available offline and has been removed from your library.'}, status=404)
 
-        # Return the file for valid offline books
         response = FileResponse(open(book_file_path, 'rb'))
         return response
 
