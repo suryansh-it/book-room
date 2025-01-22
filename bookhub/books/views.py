@@ -140,7 +140,23 @@ class BookSearchView(APIView):
                     try:
                         # Extract title from the first <td>
                         title_author_td = columns[0]
-                        title = title_author_td.find('a').text.strip() if title_author_td.find('a') else 'N/A'
+                        # title = title_author_td.find('a').text.strip() if title_author_td.find('a') else title_author_td.find('a').text.strip()
+                        
+                        b_tag = title_author_td.find('b')
+                        
+                        if b_tag:
+                            
+                            first_a_tag = b_tag.find('a')
+
+
+                            if b_tag.text:
+                                
+                                title = b_tag.text.strip()
+                            else:
+                                title= first_a_tag.text.strip()
+                        
+                        
+
 
                         # Extract author
                         author = columns[1].text.strip() if len(columns) > 1 else 'Unknown'
@@ -156,19 +172,7 @@ class BookSearchView(APIView):
                         file_size = "Unknown"  # Default value in case the file size is not found
                         if file_size_match:
                             file_size = file_size_match.group(0)  # Keep the original size with its unit (e.g., "1.5 MB")
-                        # Now, `file_size` will contain the size along with its format (e.g., "1.5 KB", "2.3 MB", or "0.9 GB")
                         
-                        
-                        # file_size = 0.0
-                        # if file_size_match:
-                        #     file_size_value = float(file_size_match.group(1))  # Extract numeric part
-                        #     file_size_unit = file_size_match.group(2)  # Extract unit (KB, MB, GB)
-                        #     if file_size_unit == 'KB':
-                        #         file_size = file_size_value / 1024  # Convert KB to MB
-                        #     elif file_size_unit == 'GB':
-                        #         file_size = file_size_value * 1024  # Convert GB to MB
-                        #     else:
-                        #         file_size = file_size_value  # MB remains as is
 
                         file_type_td = columns[7]
                         file_type = file_type_td.text.strip() if len(columns) > 7 else 'Unknown'
@@ -188,7 +192,13 @@ class BookSearchView(APIView):
                             else:
                                 libgen_link = None
                         else:
-                            libgen_link = None
+                            first_a_tag = download_td.find('a') 
+
+                            if first_a_tag:
+                                # Extract the 'href' attribute from the first 'a' tag
+                                libgen_link = first_a_tag.get('href')
+                            else:
+                                libgen_link = None
 
                         # libgen_link = None
                         # nobr = download_td.find('nobr')
@@ -363,7 +373,8 @@ class BookDownloadView(APIView):
                 author=author,
                 content=f'offline_books/{sanitized_filename}',
                 file_type='epub',
-                file_size=f'{os.path.getsize(local_path) / 1024:.2f} KB'
+                file_size=f'{os.path.getsize(local_path) / 1024:.2f} KB',
+                local_path = local_path
             )
 
             download_book.delay(libgen_link, local_path)  # Celery task
@@ -390,27 +401,43 @@ class UserLibraryView(APIView):
 
     def get(self, request):
         """
-        Retrieves a list of the user's downloaded books from the database.
+        Retrieves a list of the user's downloaded books from the database
+        and ensures only locally available books are displayed.
+        If a book is missing from the local path, it is removed from the database.
         """
         user = request.user
         books = Book.objects.filter(user=user)
 
-        if not books.exists():
+        # Remove books without a valid file
+        for book in books:
+            if not book.local_path or not os.path.exists(os.path.join(settings.MEDIA_ROOT, book.local_path)):
+                book.delete()
+
+        # Refresh the books queryset
+        books = Book.objects.filter(user=user)
+
+        # Filter books that exist in the local `offline_books` folder
+        valid_books = []
+        for book in books:
+            if book.local_path:  # Check if local_path is not None
+                book_file_path = os.path.join(settings.MEDIA_ROOT, book.local_path)
+                if os.path.exists(book_file_path):
+                    valid_books.append(book)
+            # else:
+            #     # Remove the book from the database if the file is missing
+            #     book.delete()
+
+        if not valid_books:
             return Response({'message': 'No books in your library.'}, status=404)
 
-        serializer = BookSerializer(books, many=True)
+        serializer = BookSerializer(valid_books, many=True)
         return Response({'library': serializer.data}, status=200)
 
     def access(self, request, book_id):
         """
         Provides access to a specific downloaded book based on its ID.
-        - Checks if the book exists and belongs to the user.
-        - Determines the book's file path from the database.
-        - Validates the file path's existence and accessibility.
-        - Returns an appropriate HTTP response:
-            - FileResponse for valid offline books.
-            - 404 Not Found for non-existent or inaccessible books.
-            - 403 Forbidden for books not belonging to the user.
+        - Ensures the book exists in the local `offline_books` folder.
+        - Removes the book from the database if the file is missing.
         """
         user = request.user
         book = get_object_or_404(Book, pk=book_id)
@@ -421,19 +448,12 @@ class UserLibraryView(APIView):
         book_file_path = os.path.join(settings.MEDIA_ROOT, book.local_path)
 
         if not os.path.exists(book_file_path):
-            return Response({'error': 'The requested book is not available offline.'}, status=404)
+            # Remove the book from the database
+            book.delete()
+            return Response({'error': 'The requested book is not available offline and has been removed from your library.'}, status=404)
 
-        # # File type detection using magic library (optional)
-        # mime_type = None
-        # try:
-        #     mime_type = magic.Magic(mime=True).from_file(book_file_path)
-        # except Exception as e:
-        #     print(f"Error detecting file type: {e}")
-
-        # Return FileResponse with appropriate content type (if detected)
+        # Return the file for valid offline books
         response = FileResponse(open(book_file_path, 'rb'))
-        # if mime_type:
-        #     response['Content-Type'] = mime_type
         return response
 
 
