@@ -1,10 +1,12 @@
 import zipfile
 from bs4 import BeautifulSoup
 from .models import Book, Chapter
-
+from django.shortcuts import get_object_or_404
 # This function will extract the full text from an ePub file stored as binary content.
+book = get_object_or_404(Book)
+local_path = book.local_path
 
-def extract_epub(binary_content):
+def extract_epub(local_path):
     """
     Extracts the full text from an ePub file stored as binary content.
     Returns a dictionary with the chapter titles and their corresponding content.
@@ -12,7 +14,7 @@ def extract_epub(binary_content):
     chapters = []
 
 
-    with zipfile.ZipFile(binary_content) as epub_zip:
+    with zipfile.ZipFile(local_path) as epub_zip:
         # Locate the content.opf file (ePub manifest)
         opf_path = None
         for file in epub_zip.namelist():

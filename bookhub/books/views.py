@@ -397,7 +397,7 @@ class BookDownloadView(APIView):
 
 class UserLibraryView(APIView):
     """📚 Displays and allows access to the user's downloaded books."""
-    permission_classes = [IsAuthenticated]
+    # permission_classes = [IsAuthenticated]
 
     def get(self, request):
         """
@@ -440,7 +440,7 @@ class UserLibraryView(APIView):
         user = request.user
         book = get_object_or_404(Book, pk=book_id, user=user) #check user at get_object_or_404 level
 
-        book_file_path = os.path.join(settings.MEDIA_ROOT, book.local_path)
+        book_file_path = book.local_path
 
         if not os.path.exists(book_file_path):
             book.delete()
@@ -453,21 +453,24 @@ class UserLibraryView(APIView):
 
 class BookReadView(APIView):
     """📖 Allows users to read an ePub book with lazy loading and pagination."""
-    # permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, book_id):
         user = request.user
-        # Fetch the book and ensure it's owned by the logged-in user
+
+        # Ensure the book exists in the user's library
         book = get_object_or_404(Book, id=book_id, user=user)
 
-        # If chapters aren't already extracted, extract and save them
+        # Validate book file exists
+        if not book.local_path or not os.path.exists(os.path.join(book.local_path)):
+            return Response({'error': 'The requested book file is missing or inaccessible.'}, status=404)
+
+        # Extract chapters if not already done
         if not book.chapters.exists():
             save_chapters_to_db(book)
 
         # Chapter-level pagination
         chapter_page = int(request.GET.get('chapter', 1))
         chapters_per_page = int(request.GET.get('chapters_per_page', 1))
-
 
         # Retrieve chapters based on pagination
         total_chapters = book.chapters.count()
@@ -483,7 +486,7 @@ class BookReadView(APIView):
 
         chapter_queryset = book.chapters.all()[start_index:end_index]
 
-        chapter_list=[]
+        chapter_list = []
         for chapter in chapter_queryset:
             # Lazy loading within a chapter
             section_page = int(request.GET.get('section', 1))
@@ -501,7 +504,6 @@ class BookReadView(APIView):
                 "total_sections": (len(chapter_content) + section_size - 1) // section_size,  # Total sections in the chapter
                 "current_section_page": section_page,
             })
-
 
         # Prepare the response
         response_data = {
