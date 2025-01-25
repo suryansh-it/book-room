@@ -52,7 +52,7 @@ logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %
 # import logging
 # import re
 
-
+#modify it to include all the pages search results
 class BookSearchView(APIView):
     """🔍 Allows users to search for books on Library Genesis with robust error handling."""
 
@@ -395,127 +395,200 @@ class BookDownloadView(APIView):
 # Frontend UI: Use JavaScript to load the ePub file and present it on the user interface.
 
 
+# class UserLibraryView(APIView):
+
+#     # permission = IsAuthenticated
+#     """📚 Displays and allows access to the user's downloaded books."""
+#     def get(self, request):
+#         """
+#         Retrieves a list of the user's downloaded books.
+#         Removes books with missing local files from the database.
+#         """
+#         user = request.user
+#         books = Book.objects.filter(user=user)
+
+#         books_to_delete = []  # Store books to delete outside the loop
+#         valid_books = []
+
+#         for book in books:
+#             if not book.local_path:
+#                 print(f"Book '{book.title}' has no local_path. Deleting.")
+#                 books_to_delete.append(book.pk)
+#                 continue
+
+#             book_file_path = os.path.join(settings.MEDIA_ROOT, book.local_path)
+#             if not os.path.exists(book_file_path):
+#                 print(f"File not found for book '{book.title}' at: {book_file_path}. Deleting.")
+#                 books_to_delete.append(book.pk)
+#                 continue
+
+#             valid_books.append(book)
+
+#         # Bulk delete books outside the loop for efficiency
+#         if books_to_delete:
+#             Book.objects.filter(pk__in=books_to_delete).delete()
+#             print(f"Deleted {len(books_to_delete)} books with missing files.")
+
+#         if not valid_books:
+#             return Response({'message': 'No books in your library.'}, status=404)
+
+#         serializer = BookSerializer(valid_books, many=True)
+#         return Response({'library': serializer.data}, status=200)
+
+#     def access(self, request, book_id):
+#         """Provides access to a specific downloaded book."""
+#         user = request.user
+#         book = get_object_or_404(Book, pk=book_id, user=user)  # Ensure book belongs to user
+
+#         book_file_path = os.path.join(settings.MEDIA_ROOT, book.local_path)
+
+#         if not os.path.exists(book_file_path):
+#             book.delete()
+#             return Response({'error': 'The requested book is not available offline and has been removed from your library.'}, status=404)
+
+#         response = FileResponse(open(book_file_path, 'rb'))
+#         return response
+
 class UserLibraryView(APIView):
-    """📚 Displays and allows access to the user's downloaded books."""
-    # permission_classes = [IsAuthenticated]
+    """📚 Lists books available in the offline_books directory."""
 
     def get(self, request):
-        """
-        Retrieves a list of the user's downloaded books.
-        Removes books with missing local files from the database.
-        """
-        user = request.user
-        books = Book.objects.filter(user=user)
+        offline_books_dir = os.path.join(settings.MEDIA_ROOT, 'offline_books')
+        
+        if not os.path.exists(offline_books_dir):
+            return Response({'error': 'Offline books directory does not exist.'}, status=404)
 
-        books_to_delete = []  # Store books to delete outside the loop
-        valid_books = []
+        books = []
+        for file_name in os.listdir(offline_books_dir):
+            if file_name.endswith('.epub'):
+                book_path = os.path.join(offline_books_dir, file_name)
+                books.append({'title': os.path.splitext(file_name)[0], 'file_name': file_name, 'path': book_path})
 
-        for book in books:
-            if not book.local_path:
-                print(f"Book '{book.title}' has no local_path. Deleting.")
-                books_to_delete.append(book.pk)  # Store PK for efficient deletion
-                continue #skip current iteration
+        if not books:
+            return Response({'message': 'No books available in the offline library.'}, status=404)
 
-            book_file_path = os.path.join(settings.MEDIA_ROOT, book.local_path)
-            if not os.path.exists(book_file_path):
-                print(f"File not found for book '{book.title}' at: {book_file_path}. Deleting.")
-                books_to_delete.append(book.pk)  # Store PK for efficient deletion
-                continue #skip current iteration
-
-            valid_books.append(book)
-
-        # Bulk delete books outside the loop for efficiency
-        if books_to_delete:
-            Book.objects.filter(pk__in=books_to_delete).delete()
-            print(f"Deleted {len(books_to_delete)} books with missing files.")
-
-        if not valid_books:
-            return Response({'message': 'No books in your library.'}, status=404)
-
-        serializer = BookSerializer(valid_books, many=True)
-        return Response({'library': serializer.data}, status=200)
-
-    def access(self, request, book_id):
-        """Provides access to a specific downloaded book."""
-        user = request.user
-        book = get_object_or_404(Book, pk=book_id, user=user) #check user at get_object_or_404 level
-
-        book_file_path = book.local_path
-
-        if not os.path.exists(book_file_path):
-            book.delete()
-            return Response({'error': 'The requested book is not available offline and has been removed from your library.'}, status=404)
-
-        response = FileResponse(open(book_file_path, 'rb'))
-        return response
+        return Response({'library': books}, status=200)
 
 
+
+# class BookReadView(APIView):
+#     """📖 Allows users to read an ePub book with lazy loading and pagination."""
+
+#     def get(self, request, *args, **kwargs):
+#         book_id = kwargs.get('book_id')
+#         title = request.query_params.get('title')  # New: Fetch title from query params
+
+#         if not book_id and not title:
+#             return Response({'error': 'Book ID or title is required.'}, status=400)
+
+#         try:
+#             # Attempt to fetch by ID
+#             book = None
+#             if book_id:
+#                 book = Book.objects.filter(id=book_id).first()
+
+#             # Fallback: Fetch by title
+#             if not book and title:
+#                 book = Book.objects.filter(title__iexact=title).first()
+
+#             if not book:
+#                 return Response({'error': 'Book not found.'}, status=404)
+
+#             local_path = book.local_path
+#             if not os.path.exists(local_path):
+#                 return Response({'error': 'Book file not found on disk.'}, status=404)
+
+#             with open(local_path, 'rb') as f:
+#                 return HttpResponse(f.read(), content_type='application/epub+zip')
+
+#         except Exception as e:
+#             logger.exception(f"Error in BookReadView: {e}")
+#             return Response({'error': 'Failed to read book.'}, status=500)
+
+#         # Validate book file exists
+#         book_file_path = os.path.join(settings.MEDIA_ROOT, book.local_path)
+#         if not book.local_path or not os.path.exists(book_file_path):
+#             return Response({'error': 'The requested book file is missing or inaccessible.'}, status=404)
+
+#         # Extract chapters if not already done
+#         if not book.chapters.exists():
+#             save_chapters_to_db(book.id)  # Use the imported function
+
+#         # Chapter-level pagination
+#         chapter_page = int(request.GET.get('chapter', 1))
+#         chapters_per_page = int(request.GET.get('chapters_per_page', 1))
+
+#         # Calculate the range of chapters to return
+#         start_index = (chapter_page - 1) * chapters_per_page
+#         end_index = start_index + chapters_per_page
+
+#         total_chapters = book.chapters.count()
+#         chapters = book.chapters.all()[start_index:end_index]
+
+#         # Handle out-of-range pagination
+#         if not chapters.exists():
+#             return Response({'error': 'No chapters available for the given page.'}, status=404)
+
+#         # Serialize chapters
+#         chapter_data = [
+#             {
+#                 'title': chapter.title,
+#                 'content': chapter.content,
+#                 'order': chapter.order,
+#                 'current_page': chapter_page,
+#                 'total_pages': (total_chapters // chapters_per_page) + (1 if total_chapters % chapters_per_page else 0),
+#             }
+#             for chapter in chapters
+#         ]
+
+#         return Response({'chapters': chapter_data}, status=200)
+
+
+from .utils import extract_epub
+from django.core.cache import cache
 
 class BookReadView(APIView):
-    """📖 Allows users to read an ePub book with lazy loading and pagination."""
+    """📖 Reads an ePub book with chapter-based lazy loading and pagination."""
 
-    def get(self, request, book_id):
-        user = request.user
+    def get(self, request, *args, **kwargs):
+        book_name = kwargs.get('book_id')  # Use book_name instead of book_id as we are reading directly from files
+        offline_books_dir = os.path.join(settings.MEDIA_ROOT, 'offline_books')
 
-        # Ensure the book exists in the user's library
-        book = get_object_or_404(Book, id=book_id, user=user)
+        if not book_name:
+            return Response({'error': 'Book name is required.'}, status=400)
 
-        # Validate book file exists
-        if not book.local_path or not os.path.exists(os.path.join(book.local_path)):
-            return Response({'error': 'The requested book file is missing or inaccessible.'}, status=404)
+        book_path = os.path.join(offline_books_dir, book_name)
+        if not os.path.exists(book_path):
+            return Response({'error': 'Book not found in offline library.'}, status=404)
 
-        # Extract chapters if not already done
-        if not book.chapters.exists():
-            save_chapters_to_db(book)
+        # Check cache for extracted chapters
+        cached_chapters = cache.get(book_name)
+        if not cached_chapters:
+            try:
+                cached_chapters = extract_epub(book_path)
+                cache.set(book_name, cached_chapters, timeout=3600)  # Cache chapters for 1 hour
+            except Exception as e:
+                return Response({'error': f'Failed to extract book content: {e}'}, status=500)
 
-        # Chapter-level pagination
-        chapter_page = int(request.GET.get('chapter', 1))
+        # Pagination logic
+        chapter_page = int(request.GET.get('page', 1))
         chapters_per_page = int(request.GET.get('chapters_per_page', 1))
-
-        # Retrieve chapters based on pagination
-        total_chapters = book.chapters.count()
-        if chapter_page < 1 or chapters_per_page < 1:
-            return Response({'error': 'Invalid chapter page or chapters per page value.'}, status=400)
+        total_chapters = len(cached_chapters)
 
         start_index = (chapter_page - 1) * chapters_per_page
         end_index = start_index + chapters_per_page
 
-        # Handle out-of-bounds indices
         if start_index >= total_chapters:
-            return Response({'error': 'Chapter page out of range.'}, status=404)
+            return Response({'error': 'No more chapters available.'}, status=404)
 
-        chapter_queryset = book.chapters.all()[start_index:end_index]
+        paginated_chapters = cached_chapters[start_index:end_index]
 
-        chapter_list = []
-        for chapter in chapter_queryset:
-            # Lazy loading within a chapter
-            section_page = int(request.GET.get('section', 1))
-            section_size = int(request.GET.get('section_size', 500))  # Number of characters per section
-            chapter_content = chapter.content
+        return Response({
+            'chapters': paginated_chapters,
+            'current_page': chapter_page,
+            'total_pages': (total_chapters + chapters_per_page - 1) // chapters_per_page,
+        }, status=200)
 
-            # Calculate start and end indices for the section
-            start = (section_page - 1) * section_size
-            end = start + section_size
-            section_content = chapter_content[start:end]
-
-            chapter_list.append({
-                "chapter_title": chapter.title,
-                "section_content": section_content,
-                "total_sections": (len(chapter_content) + section_size - 1) // section_size,  # Total sections in the chapter
-                "current_section_page": section_page,
-            })
-
-        # Prepare the response
-        response_data = {
-            "book_title": book.title,
-            "total_chapters": total_chapters,
-            "current_chapter_page": chapter_page,
-            "chapters": chapter_list,
-            "total_chapter_pages": (total_chapters + chapters_per_page - 1) // chapters_per_page,
-        }
-        return Response(response_data, status=200)
-
-        
 
 class BookDeleteView(APIView):
     """ Deletes a downloaded book"""
