@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'epub_reader_screen.dart';
 import '../services/library_service.dart';
 import 'package:vocsy_epub_viewer/epub_viewer.dart'; // Import vocsy_epub_viewer
 import 'package:path_provider/path_provider.dart'; // Import path_provider
@@ -41,7 +40,7 @@ class _UserLibraryScreenState extends State<UserLibraryScreen> {
 
   Future<String> _getBookPath(String relativePath) async {
     // Get the app's document directory using the top-level function
-    final directory = await getApplicationDocumentsDirectory(); // Correct usage
+    final directory = await getExternalStorageDirectory(); // Correct usage
     final offlineBooksDir = 'offline_books'; // Replace if necessary
     return p.join(directory.path, offlineBooksDir, relativePath);
   }
@@ -98,7 +97,7 @@ class _UserLibraryScreenState extends State<UserLibraryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Library'), // Add library heading
+        title: const Text('Library'), // Add library heading
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context), // Add back button
