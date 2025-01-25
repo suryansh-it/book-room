@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'epub_reader_screen.dart';
 import '../services/library_service.dart';
 import 'package:vocsy_epub_viewer/epub_viewer.dart'; // Import vocsy_epub_viewer
+import 'package:path_provider/path_provider.dart'; // Import path_provider
+import 'package:path/path.dart' as p;
+import 'dart:io'; // Import dart:io for File
 
 class UserLibraryScreen extends StatefulWidget {
   const UserLibraryScreen({Key? key}) : super(key: key);
@@ -36,10 +39,11 @@ class _UserLibraryScreenState extends State<UserLibraryScreen> {
     }
   }
 
-  String _getBookPath(String relativePath) async {
-    // Get the app's document directory (same logic as before)
-    final directory = await getApplicationDocumentsDirectory();
-    return p.join(directory.path, relativePath);
+  Future<String> _getBookPath(String relativePath) async {
+    // Get the app's document directory using the top-level function
+    final directory = await getApplicationDocumentsDirectory(); // Correct usage
+    final offlineBooksDir = 'offline_books'; // Replace if necessary
+    return p.join(directory.path, offlineBooksDir, relativePath);
   }
 
   void _openBook(int bookId, String bookTitle, String relativePath) async {
@@ -48,7 +52,7 @@ class _UserLibraryScreenState extends State<UserLibraryScreen> {
 
     if (await file.exists()) {
       try {
-        await VocsyEpub.setConfig(
+        VocsyEpub.setConfig(
           themeColor: Theme.of(context).primaryColor,
           identifier: "iosBook",
           scrollDirection: EpubScrollDirection.ALLDIRECTIONS,
@@ -56,17 +60,18 @@ class _UserLibraryScreenState extends State<UserLibraryScreen> {
           enableTts: true,
           nightMode: true,
         );
-        await VocsyEpub.open(bookPath);
+        VocsyEpub.open(bookPath);
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error opening book: $e')),
         );
       }
     } else {
+      // Handle the case where the file doesn't exist locally
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Book not found locally at: $bookPath',
+            'Book not downloaded yet or not found locally: $bookTitle ($relativePath)',
           ),
         ),
       );
@@ -92,7 +97,13 @@ class _UserLibraryScreenState extends State<UserLibraryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // ...
+      appBar: AppBar(
+        title: const Text('My Library'), // Add library heading
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context), // Add back button
+        ),
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _books.isEmpty
