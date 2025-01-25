@@ -10,7 +10,6 @@ from bs4 import BeautifulSoup
 from rest_framework import status, permissions
 from django.http import HttpResponse, FileResponse
 from django.shortcuts import get_object_or_404
-from .utils import save_chapters_to_db
 from django.conf import settings
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -32,6 +31,7 @@ from requests.adapters import HTTPAdapter
 from urllib3 import Retry
 from urllib.parse import unquote
 from rest_framework.permissions import IsAuthenticated
+from .utils import extract_epub
 
 
 # Use requests to send an HTTP request to Library Genesis.
@@ -452,18 +452,20 @@ class BookDownloadView(APIView):
 class UserLibraryView(APIView):
     """📚 Lists books available in the offline_books directory."""
 
+class UserLibraryView(APIView):
     def get(self, request):
-        offline_books_dir = os.path.join(settings.MEDIA_ROOT, 'offline_books')
-        
-        if not os.path.exists(offline_books_dir):
+        offline_books_dir = 'offline_books'  # Relative path
+        full_offline_books_dir = os.path.join(settings.MEDIA_ROOT, offline_books_dir)
+
+        if not os.path.exists(full_offline_books_dir):
             return Response({'error': 'Offline books directory does not exist.'}, status=404)
 
         books = []
-        for file_name in os.listdir(offline_books_dir):
+        for file_name in os.listdir(full_offline_books_dir):
             if file_name.endswith('.epub'):
-                book_path = os.path.join(offline_books_dir, file_name)
-                books.append({'title': os.path.splitext(file_name)[0], 'file_name': file_name, 'path': book_path})
-
+                # Construct the relative path
+                relative_path = os.path.join(offline_books_dir, file_name)
+                books.append({'title': os.path.splitext(file_name)[0], 'file_name': file_name, 'path': relative_path, 'id': 1}) # added id
         if not books:
             return Response({'message': 'No books available in the offline library.'}, status=404)
 
@@ -544,8 +546,7 @@ class UserLibraryView(APIView):
 #         return Response({'chapters': chapter_data}, status=200)
 
 
-from .utils import extract_epub
-from django.core.cache import cache
+
 
 class BookReadView(APIView):
     """📖 Reads an ePub book with chapter-based lazy loading and pagination."""

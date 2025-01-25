@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'epub_reader_screen.dart';
 import '../services/library_service.dart';
+import 'package:vocsy_epub_viewer/epub_viewer.dart'; // Import vocsy_epub_viewer
 
 class UserLibraryScreen extends StatefulWidget {
   const UserLibraryScreen({Key? key}) : super(key: key);
@@ -35,13 +36,41 @@ class _UserLibraryScreenState extends State<UserLibraryScreen> {
     }
   }
 
-  void _openBook(int bookId, String bookTitle) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => EpubReaderScreen(bookId: bookId, bookTitle: bookTitle),
-      ),
-    );
+  String _getBookPath(String relativePath) async {
+    // Get the app's document directory (same logic as before)
+    final directory = await getApplicationDocumentsDirectory();
+    return p.join(directory.path, relativePath);
+  }
+
+  void _openBook(int bookId, String bookTitle, String relativePath) async {
+    final bookPath = await _getBookPath(relativePath); // Await the future
+    final file = File(bookPath);
+
+    if (await file.exists()) {
+      try {
+        await VocsyEpub.setConfig(
+          themeColor: Theme.of(context).primaryColor,
+          identifier: "iosBook",
+          scrollDirection: EpubScrollDirection.ALLDIRECTIONS,
+          allowSharing: true,
+          enableTts: true,
+          nightMode: true,
+        );
+        await VocsyEpub.open(bookPath);
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error opening book: $e')),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Book not found locally at: $bookPath',
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _deleteBook(int bookId) async {
@@ -63,31 +92,41 @@ class _UserLibraryScreenState extends State<UserLibraryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('My Library')),
+      // ...
       body: _isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : _books.isEmpty
-              ? Center(child: Text('No downloaded books in the library'))
+              ? const Center(child: Text('No books available in the library.'))
               : ListView.builder(
                   itemCount: _books.length,
                   itemBuilder: (context, index) {
                     final book = _books[index];
-                    return ListTile(
-                      title: Text(book['title']),
-                      subtitle: Text('Author: ${book['author']}'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => _deleteBook(book['id']),
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.book),
-                            onPressed: () =>
-                                _openBook(book['id'], book['title']),
-                          ),
-                        ],
+                    return Card(
+                      child: ListTile(
+                        title: Text(book['title'] ?? 'No Title'),
+                        subtitle: Text(book['author'] ?? 'Unknown Author'),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // ... (delete button)
+                            IconButton(
+                              icon: const Icon(Icons.book),
+                              onPressed: () {
+                                if (book.containsKey('path')) {
+                                  _openBook(
+                                      book['id'], book['title'], book['path']);
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                          'File name not available for this book.'),
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },
