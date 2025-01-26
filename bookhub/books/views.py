@@ -1,5 +1,5 @@
 from django.shortcuts import render
-import requests,os,logging, re 
+import requests,os,logging, re , platform
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import Book
@@ -200,15 +200,7 @@ class BookSearchView(APIView):
                             else:
                                 libgen_link = None
 
-                        # libgen_link = None
-                        # nobr = download_td.find('nobr')
-                        # download_links = nobr.find_all('a')
-                        # for link in download_links:
-                        #     # Check if the 'data-original-title' attribute equals 'libgen' (case-insensitive)
-                        #     if link.get('data-original-title', '').strip().lower() == 'libgen':
-                        #         libgen_link = link.get('href')  # Extract the href attribute
-                        #         break  # Stop after finding the first libgen link
-
+                        
                         # Filter for ePub files only
                         if file_type.lower() == 'epub':
                             # Construct the book info dictionary
@@ -241,11 +233,7 @@ class BookSearchView(APIView):
 
 
 
-# Define the base path for downloads (assuming 'data' directory is within the app's folder on device)
-base_dir = os.path.join('/data', 'user_books')
 
-# Create the download directory if it doesn't exist
-os.makedirs(base_dir, exist_ok=True)
 
 
 logger = logging.getLogger(__name__)
@@ -275,8 +263,9 @@ class BookDownloadView(APIView):
 
         try:
             session = requests.Session()
-            session.mount('http://', HTTPAdapter(max_retries=3))
-            session.mount('https://', HTTPAdapter(max_retries=3))
+            retries = Retry(total=5, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
+            session.mount('http://', HTTPAdapter(max_retries=retries))
+            session.mount('https://', HTTPAdapter(max_retries=retries))
 
             intermediate_url = f"https://libgen.li{libgen_link}"
 
@@ -304,12 +293,15 @@ class BookDownloadView(APIView):
             final_url= f"https://libgen.li/{final_download_url}"
 
             # Follow redirects (important change)
-            final_response = session.get(final_url, stream=True, allow_redirects=True, timeout=30)
+            final_response = session.get(final_url, stream=True, allow_redirects=True, timeout=60)
 
             final_response.raise_for_status()
 
-            def file_iterator(response):
-                yield from response.iter_content(chunk_size=8192)
+            def file_iterator(response, chunk_size=8192):
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    if chunk:
+                        yield chunk
+
 
             content_disposition = final_response.headers.get('Content-Disposition')
             filename = None
@@ -344,6 +336,19 @@ class BookDownloadView(APIView):
             logger.exception(f"Error in fetch_and_download_book: {e}")
             raise
 
+
+    @staticmethod
+    def get_base_dir():
+        """Determine storage path based on the platform."""
+        if os.name == 'nt':  # Windows
+            base_dir = 'D:/offline_books'
+        else:  # Android (Linux-based in production)
+            base_dir = '/data/user/0/com.example.myapp/files/user_books'  # Adjust as per app's Android file path
+        os.makedirs(base_dir, exist_ok=True)
+        return base_dir
+        
+       
+
     def post(self, request):
         libgen_link = request.data.get('libgen_link', '').strip()
         title = request.data.get('title', '').strip()
@@ -355,17 +360,25 @@ class BookDownloadView(APIView):
         try:
             streaming_response = self.fetch_and_download_book(libgen_link, title)
 
-            download_dir = os.path.join(base_dir, 'offline_books')
-            os.makedirs(download_dir, exist_ok=True)
+            # Determine the storage path dynamically
+            download_dir = self.get_base_dir()
+            # os.makedirs(download_dir, exist_ok=True)
 
             # Ensure filename extraction even if Content-Disposition is missing
             filename = streaming_response.get('Content-Disposition', "").split('filename="')[1][:-1] if 'Content-Disposition' in streaming_response else ""
 
             local_path = os.path.join(download_dir, filename)
 
-            with open(local_path, 'wb') as f:
-                for chunk in streaming_response.streaming_content:
-                    f.write(chunk)
+            try:
+                with open(local_path, 'wb') as f:
+                    for chunk in streaming_response.streaming_content:
+                        if chunk:  # Filter out keep-alive chunks
+                            f.write(chunk)
+            except Exception as write_error:
+                logger.error(f"Error writing the file: {write_error}")
+                raise
+
+            logger.info(f"Book saved to: {local_path}")
 
             if not filename:
                 # If filename extraction failed (or Content-Disposition is missing), use a generic fallback with a timestamp
@@ -404,42 +417,66 @@ class BookDownloadView(APIView):
 
 
 
-# class UserLibraryView(APIView):
-    """📚 Lists books available in the offline_books directory."""
+
+
+import os
+import logging
+from rest_framework.views import APIView
+from rest_framework.response import Response
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 class UserLibraryView(APIView):
+    
+    @staticmethod
+    def get_base_dir():
+        """
+        Determine storage path based on the platform.
+        """
+        if os.name == 'nt':  # Windows
+            base_dir = 'D:/offline_books'
+        else:  # Android or other environments
+            base_dir = '/data/user/0/com.example.myapp/files/user_books'  # Adjust as needed for production
+        
+        print(f"Base directory: {base_dir}")  # Print the base directory for debugging
+        return base_dir
+
     def get(self, request):
-        # Define the base directory within the app's storage
-        base_dir = os.path.join('/data', 'user_books')  # Or a suitable path within your app's storage
-
-        # Construct the full path to the offline books directory
-        offline_books_dir = 'offline_books'
-        full_offline_books_dir = os.path.join(base_dir, offline_books_dir)
-
-        # Check if the directory exists. If not, return an error.
-        if not os.path.exists(full_offline_books_dir):
-            os.makedirs(full_offline_books_dir, exist_ok=True) # Create the directory if it doesn't exist.
-            return Response({'message': 'No books available in the offline library as the directory has just been created.'}, status=200) #Return 200 as the directory has been created.
-
+        """
+        Retrieve all books stored in the user's offline library.
+        """
+        base_dir = self.get_base_dir()
         books = []
+
         try:
-            for file_name in os.listdir(full_offline_books_dir):
+            # Check if the base directory exists
+            if not os.path.exists(base_dir):
+                raise FileNotFoundError(f"Base directory {base_dir} not found.")
+            
+            for file_name in os.listdir(base_dir):
                 if file_name.endswith('.epub'):
-                    # Construct the relative path (just the filename)
-                    relative_path = file_name
-                    books.append({
+                    book_info = {
                         'title': os.path.splitext(file_name)[0],
                         'file_name': file_name,
-                        'path': relative_path,  # Send only the filename
-                        'id': 1  # You'll likely want to use a real ID from your database
-                    })
-        except FileNotFoundError:
+                        'path': file_name,  # Return just the file name
+                    }
+                    books.append(book_info)
+                    print(f"Book found: {book_info['title']}")  # Print book details in terminal
+
+        except FileNotFoundError as e:
+            logger.error(f"Error: {e}")
             return Response({'message': 'No books available in the offline library.'}, status=200)
         except Exception as e:
+            logger.error(f"Error reading offline books: {e}")
             return Response({'error': f'An error occurred: {str(e)}'}, status=500)
+
         if not books:
+            logger.info("No books found in the library.")
             return Response({'message': 'No books available in the offline library.'}, status=200)
 
+        logger.info(f"Books found: {len(books)}")  # Log the number of books found
         return Response({'library': books}, status=200)
 
 
