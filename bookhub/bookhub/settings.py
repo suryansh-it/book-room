@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 from decouple import config  # Import config from python-decouple
 import os
+# from .urls import urlpatterns
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -186,6 +187,8 @@ RAZORPAY_KEY_SECRET = config("razorpay_key_secret")
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
+
+
 
 # Load encryption key
 ENCRYPTION_KEY = config("ENCRYPTION_KEY")

@@ -14,16 +14,6 @@ from django.conf import settings
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from urllib.parse import urlparse
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium.webdriver.chrome.options import Options
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
 from time import sleep
 from .serializers import BookSerializer
 from django.http import StreamingHttpResponse
@@ -32,7 +22,9 @@ from urllib3 import Retry
 from urllib.parse import unquote
 from rest_framework.permissions import IsAuthenticated
 from .utils import extract_epub
-
+from pathlib import Path
+from urllib.parse import quote
+from django.conf import settings
 
 # Use requests to send an HTTP request to Library Genesis.
 # Extract book information (title, author, download link, etc.) from the response.
@@ -238,29 +230,19 @@ class BookSearchView(APIView):
 
 logger = logging.getLogger(__name__)
 
+import os
+
+
 class BookDownloadView(APIView):
     """
     Handles the download of an ePub book from Library Genesis.
-
-    This view fetches an intermediate page, triggers the final download,
-    saves the book to the database, and schedules further processing with a Celery task.
     """
 
     @staticmethod
-    def fetch_and_download_book(libgen_link,title):
+    def fetch_and_download_book(libgen_link, title):
         """
         Fetch the intermediate page, locate the 'GET' button, and download the ePub file.
-
-        Args:
-            libgen_link (str): The URL of the intermediate page with the 'GET' button.
-
-        Returns:
-            str: The local path of the downloaded file.
-
-        Raises:
-            Exception: If any step in the process fails.
         """
-
         try:
             session = requests.Session()
             retries = Retry(total=5, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
@@ -268,7 +250,6 @@ class BookDownloadView(APIView):
             session.mount('https://', HTTPAdapter(max_retries=retries))
 
             intermediate_url = f"https://libgen.li{libgen_link}"
-
             logger.info(f"Fetching intermediate page: {intermediate_url}")
             response = session.get(intermediate_url, timeout=10)
             if response.status_code != 200:
@@ -290,11 +271,10 @@ class BookDownloadView(APIView):
 
             logger.info(f"Final download URL: {final_download_url}")
 
-            final_url= f"https://libgen.li/{final_download_url}"
+            final_url = f"https://libgen.li/{final_download_url}"
 
             # Follow redirects (important change)
             final_response = session.get(final_url, stream=True, allow_redirects=True, timeout=60)
-
             final_response.raise_for_status()
 
             def file_iterator(response, chunk_size=8192):
@@ -302,18 +282,17 @@ class BookDownloadView(APIView):
                     if chunk:
                         yield chunk
 
-
             content_disposition = final_response.headers.get('Content-Disposition')
             filename = None
 
             if content_disposition:
                 filename_match = re.search(r"filename\*=UTF-8''(.+)", content_disposition)
                 if filename_match:
-                    filename = unquote(filename_match.group(1))  # Decode the filename
+                    filename = quote(filename_match.group(1))  # URL encode the filename
                 else:
                     filename_match = re.search(r"filename=\"(.+)\"", content_disposition)
                     if filename_match:
-                        filename = filename_match.group(1)
+                        filename = quote(filename_match.group(1))
 
             if not filename:
                 # Fallback: Generate filename from title (improved)
@@ -321,13 +300,19 @@ class BookDownloadView(APIView):
                 filename = f"{'-'.join(filename_parts)}.epub"
                 logger.warning(f"Content-Disposition header missing. Using fallback filename: {filename}")
 
-            streaming_response = StreamingHttpResponse(
-                file_iterator(final_response),
-                content_type=final_response.headers.get('Content-Type'),
-            )
-            streaming_response['Content-Length'] = final_response.headers.get('Content-Length')
-            streaming_response['Content-Disposition'] = f'attachment; filename="{filename}"'
-            return streaming_response
+            # Ensure the directory for saving the book exists
+            media_download_dir = os.path.join('media', 'offline_books')  # Path for media files
+            os.makedirs(media_download_dir, exist_ok=True)  # Ensure the directory exists
+
+            local_path = os.path.join(media_download_dir, filename)
+
+            with open(local_path, 'wb') as f:
+                for chunk in file_iterator(final_response):
+                    f.write(chunk)
+
+            logger.info(f"Book saved to: {local_path}")
+
+            return local_path
 
         except requests.exceptions.RequestException as e:
             logger.exception(f"Request Exception in fetch_and_download_book: {e}")
@@ -335,19 +320,6 @@ class BookDownloadView(APIView):
         except Exception as e:
             logger.exception(f"Error in fetch_and_download_book: {e}")
             raise
-
-
-    @staticmethod
-    def get_base_dir():
-        """Determine storage path based on the platform."""
-        # if os.name == 'nt':  # Windows
-        #     base_dir = 'D:/offline_books'
-        # else:  # Android (Linux-based in production)
-        base_dir = '/data/user/0/com.example.book_app/files/user_books'  # Adjust as per app's Android file path
-        os.makedirs(base_dir, exist_ok=True)
-        return base_dir
-        
-       
 
     def post(self, request):
         libgen_link = request.data.get('libgen_link', '').strip()
@@ -358,35 +330,12 @@ class BookDownloadView(APIView):
             return Response({'error': 'Download URL, title, and author are required'}, status=400)
 
         try:
-            streaming_response = self.fetch_and_download_book(libgen_link, title)
+            local_path = self.fetch_and_download_book(libgen_link, title)
 
-            # Determine the storage path dynamically
-            download_dir = self.get_base_dir()
-            # os.makedirs(download_dir, exist_ok=True)
+            # Provide a URL for the frontend to download
+            media_url = f"{settings.MEDIA_URL}offline_books/{os.path.basename(local_path)}"  # Ensure URL is encoded
 
-            # Ensure filename extraction even if Content-Disposition is missing
-            filename = streaming_response.get('Content-Disposition', "").split('filename="')[1][:-1] if 'Content-Disposition' in streaming_response else ""
-
-            local_path = os.path.join(download_dir, filename)
-
-            try:
-                with open(local_path, 'wb') as f:
-                    for chunk in streaming_response.streaming_content:
-                        if chunk:  # Filter out keep-alive chunks
-                            f.write(chunk)
-            except Exception as write_error:
-                logger.error(f"Error writing the file: {write_error}")
-                raise
-
-            logger.info(f"Book saved to: {local_path}")
-
-            if not filename:
-                # If filename extraction failed (or Content-Disposition is missing), use a generic fallback with a timestamp
-                
-                local_path = os.path.join(download_dir, f"generic_download.epub")
-
-
-
+            # Save book information in the database
             sanitized_filename = os.path.basename(local_path)
             book = Book.objects.create(
                 user=request.user,
@@ -395,22 +344,20 @@ class BookDownloadView(APIView):
                 content=f'offline_books/{sanitized_filename}',
                 file_type='epub',
                 file_size=f'{os.path.getsize(local_path) / 1024:.2f} KB',
-                local_path = local_path
+                local_path=local_path
             )
-
             download_book.delay(libgen_link, local_path)  # Celery task
-
             return Response({
                 'message': 'Book downloaded successfully',
                 'book_id': book.id,
-                'file_path': book.content.url if hasattr(book.content, 'url') else book.content
+                'file_url': media_url
             }, status=201)
 
         except Exception as e:
-            logger.exception(f"Error in BookDownloadView.post: {e}")  # Log the full traceback
+            logger.exception(f"Error in BookDownloadView.post: {e}")
             return Response({'error': f'An error occurred: {str(e)}'}, status=500)
 
-
+# download_book.delay(libgen_link, local_path)  # Celery task
 # ePub Parser: Use python-epub-reader to parse and render ePub files.
 # Book Reader API: Provide API endpoints for the user to read the book.
 # Frontend UI: Use JavaScript to load the ePub file and present it on the user interface.
@@ -431,10 +378,10 @@ class UserLibraryView(APIView):
         # if os.name == 'nt':  # Windows
         #     base_dir = 'D:/offline_books'
         # else:  # Android or other environments
-        base_dir = '/data/user/0/com.example.book_app/files/user_books'  # Adjust as needed for production
-        
-        print(f"Base directory: {base_dir}")  # Print the base directory for debugging
-        return base_dir
+        """Determine storage path for user_books folder."""
+        base_dir = Path.home() / "Downloads/user_books"
+        base_dir.mkdir(parents=True, exist_ok=True)
+        return str(base_dir)
 
     def get(self, request):
         """

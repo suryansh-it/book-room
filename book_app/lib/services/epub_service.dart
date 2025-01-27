@@ -1,62 +1,16 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
 import 'auth_service.dart';
 import '../models/book.dart';
-
-// class EpubService {
-//   final Dio _dio = Dio(BaseOptions(baseUrl: "http://10.0.2.2:8011/api/books/"));
-//   final AuthService _authService = AuthService();
-
-//   // Download ePub
-//   Future<String> downloadEpub(
-//       String title, String author, String downloadUrl, String savePath) async {
-//     try {
-//       // Fetch token from AuthService
-//       final token = await _authService.getlogin();
-//       if (token == null) {
-//         throw Exception("Authentication required. Please log in.");
-//       }
-
-//       // Add Authorization header
-//       _dio.options.headers['Authorization'] = 'Bearer $token';
-
-//       print("Initiating download for $title by $author");
-//       print("Downloading from: $downloadUrl");
-//       print("Saving to: $savePath");
-
-//       final sanitizedAuthor = author.isNotEmpty ? author : "Unknown Author";
-
-//       final response = await _dio.download(
-//         '/download',
-//         savePath,
-//         queryParameters: {
-//           'title': title,
-//           'author': sanitizedAuthor,
-//           'url': downloadUrl
-//         },
-//         onReceiveProgress: (received, total) {
-//           if (total != -1) {
-//             print(
-//                 "Downloading: ${(received / total * 100).toStringAsFixed(0)}%");
-//           }
-//         },
-//       );
-
-//       if (response.statusCode == 200) {
-//         print("Download completed for $title");
-//         return savePath;
-//       } else {
-//         throw Exception("Download failed: ${response.statusMessage}");
-//       }
-//     } catch (e) {
-//       print("Error during download: $e");
-//       throw Exception("Download failed: $e");
-//     }
-//   }
-// }
+import 'package:flutter/material.dart';
 
 class EpubService {
   final Dio _dio = Dio(BaseOptions(
     baseUrl: "http://192.168.10.250:8019/api/books/",
+  ));
+  final Dio _dio2 = Dio(BaseOptions(
+    baseUrl: "http://192.168.10.250:8019/",
   ));
   final AuthService _authService = AuthService();
 
@@ -85,8 +39,7 @@ class EpubService {
       });
 
       final response = await _dio.post(
-        // Use POST request
-        'download/',
+        'download/', // Match the backend route for downloading
         data: formData, // Send FormData
         onReceiveProgress: (received, total) {
           if (total != -1) {
@@ -95,17 +48,43 @@ class EpubService {
           }
         },
         options: Options(
-          // Important: Set content type
           contentType: 'multipart/form-data',
         ),
       );
 
       if (response.statusCode == 201) {
+        // Retrieve the download URL from backend response
+        final downloadUrl = response.data['file_url'];
+        if (downloadUrl == null) {
+          throw Exception("Download URL not found in the response.");
+        }
+
+        // Initiate the actual download with the URL
+        final fileResponse = await _dio2.get(
+          downloadUrl,
+          options: Options(responseType: ResponseType.stream),
+          onReceiveProgress: (received, total) {
+            if (total != -1) {
+              print(
+                  "Downloading: ${(received / total * 100).toStringAsFixed(0)}%");
+            }
+          },
+        );
+
+        // Ensure directory exists
+        final fileDir = Directory(savePath);
+        if (!fileDir.existsSync()) {
+          fileDir.createSync(recursive: true);
+        }
+
+        final file = File('$savePath/${book.title}.epub');
+        await file.writeAsBytes(await fileResponse.data!.toBytes());
+
         print("Download completed for ${book.title}");
         return savePath;
       } else {
         throw Exception(
-            "Download failed: ${response.statusCode} ${response.statusMessage} ${response.data}"); // Include response data for debugging
+            "Download failed: ${response.statusCode} ${response.statusMessage}");
       }
     } catch (e) {
       print("Error during download: $e");

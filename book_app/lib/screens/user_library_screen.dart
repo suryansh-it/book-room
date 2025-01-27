@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/library_service.dart'; // Make sure this path is correct
 import 'package:vocsy_epub_viewer/epub_viewer.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'dart:io';
 
@@ -13,8 +11,7 @@ class UserLibraryScreen extends StatefulWidget {
 }
 
 class _UserLibraryScreenState extends State<UserLibraryScreen> {
-  final LibraryService _libraryService = LibraryService();
-  List<Map<String, dynamic>> _books = [];
+  List<Map<String, String>> _books = [];
   bool _isLoading = true;
 
   @override
@@ -25,9 +22,27 @@ class _UserLibraryScreenState extends State<UserLibraryScreen> {
 
   Future<void> _fetchLibraryBooks() async {
     try {
-      final books = await _libraryService.getDownloadedBooks();
+      // Get the Downloads/user_books directory
+      final downloadsDir = Directory('/storage/emulated/0/Download/user_books');
+
+      // Check if directory exists
+      if (!downloadsDir.existsSync()) {
+        // Create the directory if it doesn't exist
+        await downloadsDir.create(recursive: true);
+      }
+
+      // Retrieve list of .epub files in the folder
+      final books = downloadsDir
+          .listSync()
+          .where((file) => file is File && file.path.endsWith('.epub'))
+          .map((file) => {
+                'title': p.basenameWithoutExtension(file.path),
+                'path': file.path,
+              })
+          .toList();
+
       setState(() {
-        _books = books;
+        _books = books.cast<Map<String, String>>();
         _isLoading = false;
       });
     } catch (e) {
@@ -38,36 +53,16 @@ class _UserLibraryScreenState extends State<UserLibraryScreen> {
     }
   }
 
-  Future<String> _getBookPath(String fileName) async {
-    final directory = await getApplicationDocumentsDirectory();
-    print('Flutter Directory Path: ${directory.path}');
-    final offlineDir = Directory(p.join(directory.path, 'user_books'));
-
-    if (!offlineDir.existsSync()) {
-      await offlineDir.create(recursive: true); // Ensure the directory exists
-    }
-
-    final bookPath = p.join(offlineDir.path, fileName);
-    print('Constructed book path: $bookPath'); // Debug log
-    return bookPath;
-  }
-
-  void _openBook(String bookTitle) async {
+  void _openBook(String bookPath) async {
     try {
-      final book = _books.firstWhere((book) => book['title'] == bookTitle);
-      final relativePath = book['path'];
-
-      // Get full book path
-      final bookPath = await _getBookPath(relativePath);
-
       if (await File(bookPath).exists()) {
         VocsyEpub.setConfig(
           themeColor: Theme.of(context).primaryColor,
           identifier: "androidBook",
-          scrollDirection: EpubScrollDirection.ALLDIRECTIONS,
+          scrollDirection: EpubScrollDirection.VERTICAL,
           allowSharing: true,
           enableTts: true,
-          nightMode: true,
+          nightMode: false,
         );
         VocsyEpub.open(bookPath);
       } else {
@@ -101,11 +96,11 @@ class _UserLibraryScreenState extends State<UserLibraryScreen> {
                     return Card(
                       child: ListTile(
                         title: Text(book['title'] ?? 'No Title'),
-                        subtitle: Text(book['author'] ?? 'Unknown Author'),
+                        subtitle: const Text('Tap to read'),
                         trailing: IconButton(
                           icon: const Icon(Icons.book),
                           onPressed: () =>
-                              _openBook(book['title']), // Pass book title
+                              _openBook(book['path']!), // Pass book path
                         ),
                       ),
                     );
