@@ -3,7 +3,11 @@ import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthService {
-  final Dio _dio = Dio(BaseOptions(baseUrl: "http://10.0.2.2:8011/api/users/"));
+  final Dio _dio = Dio(BaseOptions(
+    baseUrl: "http://192.168.10.250:8019/api/users/",
+    connectTimeout: const Duration(seconds: 10), // 5 seconds
+    receiveTimeout: const Duration(seconds: 10), // 3 seconds
+  ));
   // Flutter apps running on emulators use 10.0.2.2 to connect to the local development server.
   final FlutterSecureStorage _storage = FlutterSecureStorage();
 

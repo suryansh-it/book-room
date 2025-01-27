@@ -6,7 +6,7 @@ import 'package:path/path.dart' as p;
 import 'dart:io';
 
 class UserLibraryScreen extends StatefulWidget {
-  const UserLibraryScreen({Key? key}) : super(key: key);
+  const UserLibraryScreen({super.key});
 
   @override
   State<UserLibraryScreen> createState() => _UserLibraryScreenState();
@@ -39,76 +39,41 @@ class _UserLibraryScreenState extends State<UserLibraryScreen> {
   }
 
   Future<String> _getBookPath(String fileName) async {
-    Directory directory;
+    final directory = await getApplicationDocumentsDirectory();
+    print('Flutter Directory Path: ${directory.path}');
+    final offlineDir = Directory(p.join(directory.path, 'user_books'));
 
-    if (Platform.isAndroid) {
-      // For Android, use the application document directory
-      directory = await getApplicationDocumentsDirectory();
-    } else if (Platform.isWindows) {
-      // For Windows, use the hardcoded path directly for the books directory
-      directory = Directory('D:/offline_books');
-    } else {
-      // For other platforms, use the default directory
-      directory = await getApplicationDocumentsDirectory();
+    if (!offlineDir.existsSync()) {
+      await offlineDir.create(recursive: true); // Ensure the directory exists
     }
 
-    // If it's not Windows, we append the 'user_books' folder to the path
-    final offlineDirPath = Platform.isWindows
-        ? directory.path // Use the hardcoded Windows path directly
-        : p.join(directory.path, 'user_books');
-    final offlineDir = Directory(offlineDirPath);
-
-    // Ensure the directory exists, but do not create it for Windows
-    if (!Platform.isWindows && !offlineDir.existsSync()) {
-      offlineDir.createSync(recursive: true);
-    }
-
-    // Log the constructed path for debugging
-    final bookPath = p.join(offlineDirPath, fileName);
-    print('Constructed book path: $bookPath'); // Debug output to check path
-
+    final bookPath = p.join(offlineDir.path, fileName);
+    print('Constructed book path: $bookPath'); // Debug log
     return bookPath;
   }
 
   void _openBook(String bookTitle) async {
     try {
-      // Fetch the book details from the list based on the title
       final book = _books.firstWhere((book) => book['title'] == bookTitle);
       final relativePath = book['path'];
 
-      // Get the full book path using the helper function
-      String bookPath;
+      // Get full book path
+      final bookPath = await _getBookPath(relativePath);
 
-      if (Platform.isWindows) {
-        // On Windows, use the hardcoded path for reading books
-        bookPath = 'D:/offline_books/';
-      } else {
-        // For other platforms, use the usual method to get the path
-        bookPath = await _getBookPath(relativePath);
-      }
-
-      // Log the book path for debugging
-      print('Attempting to open book at: $bookPath');
-
-      // Check if the file exists before attempting to open it
       if (await File(bookPath).exists()) {
-        // Set configuration for the EPUB viewer
         VocsyEpub.setConfig(
           themeColor: Theme.of(context).primaryColor,
-          identifier: "iosBook",
+          identifier: "androidBook",
           scrollDirection: EpubScrollDirection.ALLDIRECTIONS,
           allowSharing: true,
           enableTts: true,
           nightMode: true,
         );
-
-        // Open the book using the Vocsy EPUB viewer
         VocsyEpub.open(bookPath);
       } else {
-        throw Exception('Book file not found at: $bookPath');
+        throw Exception('Book not found at $bookPath');
       }
     } catch (e) {
-      // Display an error message if any issue occurs
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error opening book: $e')),
       );

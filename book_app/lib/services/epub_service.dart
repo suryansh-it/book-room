@@ -55,7 +55,9 @@ import '../models/book.dart';
 // }
 
 class EpubService {
-  final Dio _dio = Dio(BaseOptions(baseUrl: "http://10.0.2.2:8011/api/books/"));
+  final Dio _dio = Dio(BaseOptions(
+    baseUrl: "http://192.168.10.250:8019/api/books/",
+  ));
   final AuthService _authService = AuthService();
 
   Future<String> downloadEpub(Book book, String savePath) async {

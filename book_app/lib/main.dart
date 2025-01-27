@@ -4,8 +4,12 @@ import '/providers/auth_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
+import '/services/permission_service.dart'; // Import PermissionService
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding
+      .ensureInitialized(); // Ensure binding for async operations
+
   runApp(
     MultiProvider(
       providers: [

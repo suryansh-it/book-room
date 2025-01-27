@@ -340,10 +340,10 @@ class BookDownloadView(APIView):
     @staticmethod
     def get_base_dir():
         """Determine storage path based on the platform."""
-        if os.name == 'nt':  # Windows
-            base_dir = 'D:/offline_books'
-        else:  # Android (Linux-based in production)
-            base_dir = '/data/user/0/com.example.myapp/files/user_books'  # Adjust as per app's Android file path
+        # if os.name == 'nt':  # Windows
+        #     base_dir = 'D:/offline_books'
+        # else:  # Android (Linux-based in production)
+        base_dir = '/data/user/0/com.example.book_app/files/user_books'  # Adjust as per app's Android file path
         os.makedirs(base_dir, exist_ok=True)
         return base_dir
         
@@ -417,13 +417,6 @@ class BookDownloadView(APIView):
 
 
 
-
-
-import os
-import logging
-from rest_framework.views import APIView
-from rest_framework.response import Response
-
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -435,10 +428,10 @@ class UserLibraryView(APIView):
         """
         Determine storage path based on the platform.
         """
-        if os.name == 'nt':  # Windows
-            base_dir = 'D:/offline_books'
-        else:  # Android or other environments
-            base_dir = '/data/user/0/com.example.myapp/files/user_books'  # Adjust as needed for production
+        # if os.name == 'nt':  # Windows
+        #     base_dir = 'D:/offline_books'
+        # else:  # Android or other environments
+        base_dir = '/data/user/0/com.example.book_app/files/user_books'  # Adjust as needed for production
         
         print(f"Base directory: {base_dir}")  # Print the base directory for debugging
         return base_dir

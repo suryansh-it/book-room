@@ -82,7 +82,7 @@ import '../models/book.dart';
 
 class BookService {
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: "http://10.0.2.2:8011/api/books/",
+    baseUrl: "http://192.168.10.250:8019/api/books/",
   ));
 
   Future<List<Book>> searchBooks(String query) async {

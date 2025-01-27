@@ -1,10 +1,12 @@
-import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'auth_service.dart';
-import '../models/book.dart';
 
 class LibraryService {
-  final Dio _dio = Dio(BaseOptions(baseUrl: "http://10.0.2.2:8011/api/books/"));
+  final Dio _dio = Dio(BaseOptions(
+    baseUrl: "http://192.168.10.250:8019/api/books/",
+    connectTimeout: const Duration(seconds: 20), // 5 seconds
+    receiveTimeout: const Duration(seconds: 20), // 3 seconds
+  ));
   final AuthService _authService = AuthService();
 
   Future<List<Map<String, dynamic>>> getDownloadedBooks() async {
