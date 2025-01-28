@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:vocsy_epub_viewer/epub_viewer.dart';
 import 'package:path/path.dart' as p;
 import 'dart:io';
+import 'package:path_provider/path_provider.dart'; // Import to get app's document directory
+import 'package:vocsy_epub_viewer/epub_viewer.dart'; // For EPUB viewer functionality
 
 class UserLibraryScreen extends StatefulWidget {
   const UserLibraryScreen({super.key});
@@ -22,17 +23,18 @@ class _UserLibraryScreenState extends State<UserLibraryScreen> {
 
   Future<void> _fetchLibraryBooks() async {
     try {
-      // Get the Downloads/user_books directory
-      final downloadsDir = Directory('/storage/emulated/0/Download/user_books');
+      // Get the user_books directory in the app's document directory
+      final appDir = await getApplicationDocumentsDirectory();
+      final booksDir = Directory('${appDir.path}/user_books');
 
       // Check if directory exists
-      if (!downloadsDir.existsSync()) {
-        // Create the directory if it doesn't exist
-        await downloadsDir.create(recursive: true);
+      if (!booksDir.existsSync()) {
+        // If the directory doesn't exist, create it
+        await booksDir.create(recursive: true);
       }
 
-      // Retrieve list of .epub files in the folder
-      final books = downloadsDir
+      // Retrieve list of .epub files in the directory
+      final books = booksDir
           .listSync()
           .where((file) => file is File && file.path.endsWith('.epub'))
           .map((file) => {

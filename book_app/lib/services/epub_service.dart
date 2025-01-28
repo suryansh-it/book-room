@@ -9,12 +9,14 @@ class EpubService {
   final Dio _dio = Dio(BaseOptions(
     baseUrl: "http://192.168.10.250:8019/api/books/",
   ));
+
   final Dio _dio2 = Dio(BaseOptions(
     baseUrl: "http://192.168.10.250:8019/",
   ));
+
   final AuthService _authService = AuthService();
 
-  Future<String> downloadEpub(Book book, String savePath) async {
+  Future<String> downloadEpub(Book book) async {
     try {
       final token = await _authService.getlogin();
       if (token == null) {
@@ -28,10 +30,13 @@ class EpubService {
       }
 
       print("Initiating download for ${book.title} by ${book.author}");
-      print("Downloading from: ${book.downloadLink}");
-      print("Saving to: $savePath");
 
-      // Use FormData to send data in the request body
+      // Prepare save directory
+      Directory appDir = await getApplicationDocumentsDirectory();
+      String saveDirPath = '${appDir.path}/user_books';
+      await Directory(saveDirPath).create(recursive: true);
+
+      // Step 1: Request the file URL from the backend
       FormData formData = FormData.fromMap({
         'libgen_link': book.downloadLink,
         'title': book.title,
@@ -39,30 +44,25 @@ class EpubService {
       });
 
       final response = await _dio.post(
-        'download/', // Match the backend route for downloading
-        data: formData, // Send FormData
-        onReceiveProgress: (received, total) {
-          if (total != -1) {
-            print(
-                "Downloading: ${(received / total * 100).toStringAsFixed(0)}%");
-          }
-        },
-        options: Options(
-          contentType: 'multipart/form-data',
-        ),
+        'download/',
+        data: formData,
+        options: Options(contentType: 'multipart/form-data'),
       );
 
       if (response.statusCode == 201) {
-        // Retrieve the download URL from backend response
         final downloadUrl = response.data['file_url'];
         if (downloadUrl == null) {
           throw Exception("Download URL not found in the response.");
         }
 
-        // Initiate the actual download with the URL
-        final fileResponse = await _dio2.get(
+        // Step 2: Download the file using the provided URL
+        String sanitizedTitle =
+            book.title.replaceAll(RegExp(r'[\\/:"*?<>|]+'), '_');
+        String saveFilePath = '$saveDirPath/$sanitizedTitle.epub';
+
+        final downloadResponse = await _dio2.download(
           downloadUrl,
-          options: Options(responseType: ResponseType.stream),
+          saveFilePath,
           onReceiveProgress: (received, total) {
             if (total != -1) {
               print(
@@ -71,20 +71,16 @@ class EpubService {
           },
         );
 
-        // Ensure directory exists
-        final fileDir = Directory(savePath);
-        if (!fileDir.existsSync()) {
-          fileDir.createSync(recursive: true);
+        if (downloadResponse.statusCode == 200) {
+          print("Download completed for ${book.title} at $saveFilePath");
+          return saveFilePath;
+        } else {
+          throw Exception(
+              "File download failed: ${downloadResponse.statusCode} ${downloadResponse.statusMessage}");
         }
-
-        final file = File('$savePath/${book.title}.epub');
-        await file.writeAsBytes(await fileResponse.data!.toBytes());
-
-        print("Download completed for ${book.title}");
-        return savePath;
       } else {
         throw Exception(
-            "Download failed: ${response.statusCode} ${response.statusMessage}");
+            "Failed to retrieve file URL: ${response.statusCode} ${response.statusMessage}");
       }
     } catch (e) {
       print("Error during download: $e");

@@ -25,6 +25,8 @@ from .utils import extract_epub
 from pathlib import Path
 from urllib.parse import quote
 from django.conf import settings
+from django.utils.text import slugify
+
 
 # Use requests to send an HTTP request to Library Genesis.
 # Extract book information (title, author, download link, etc.) from the response.
@@ -288,16 +290,17 @@ class BookDownloadView(APIView):
             if content_disposition:
                 filename_match = re.search(r"filename\*=UTF-8''(.+)", content_disposition)
                 if filename_match:
-                    filename = quote(filename_match.group(1))  # URL encode the filename
+                    filename = (filename_match.group(1))  # URL encode the filename
                 else:
                     filename_match = re.search(r"filename=\"(.+)\"", content_disposition)
                     if filename_match:
-                        filename = quote(filename_match.group(1))
+                        filename = (filename_match.group(1))
 
             if not filename:
                 # Fallback: Generate filename from title (improved)
                 filename_parts = [re.sub(r'[\\/*?:"<>|]', "", part) for part in title.split()]  # Sanitize each word
-                filename = f"{'-'.join(filename_parts)}.epub"
+                filename = f"{slugify('-'.join(filename_parts))}.epub"
+
                 logger.warning(f"Content-Disposition header missing. Using fallback filename: {filename}")
 
             # Ensure the directory for saving the book exists
@@ -333,7 +336,7 @@ class BookDownloadView(APIView):
             local_path = self.fetch_and_download_book(libgen_link, title)
 
             # Provide a URL for the frontend to download
-            media_url = f"{settings.MEDIA_URL}offline_books/{os.path.basename(local_path)}"  # Ensure URL is encoded
+            media_url =request.build_absolute_uri(f"{settings.MEDIA_URL}offline_books/{os.path.basename(local_path)}")  # Ensure URL is encoded
 
             # Save book information in the database
             sanitized_filename = os.path.basename(local_path)

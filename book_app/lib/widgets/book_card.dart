@@ -1,6 +1,4 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import '../models/book.dart';
 import '../services/epub_service.dart';
 
@@ -18,35 +16,20 @@ class BookCard extends StatelessWidget {
     final epubService = EpubService();
 
     try {
-      // Get the external storage directory
-      final directory = await getExternalStorageDirectory();
-      if (directory == null) {
-        throw Exception("Unable to access external storage.");
-      }
-
-      // Create path to save the book
-      final path = directory.path + '/Download/user_books';
-      final savePath = '$path/${getFormattedTitle(book.id)}.epub';
-
-      // Ensure the directory exists
-      final dir = Directory(path);
-      if (!dir.existsSync()) {
-        dir.createSync(recursive: true);
-      }
-
       // Check if download link is available before initiating download
       if (book.downloadLink == null) {
         throw Exception("Download link is not available for this book.");
       }
 
-      // Initiate the download
-      await epubService.downloadEpub(book, savePath);
+      // Initiate the download and get the file path
+      final savePath = await epubService.downloadEpub(book);
 
       // Show success message in SnackBar
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content:
-              Text('Downloaded ${getFormattedTitle(book.id)} successfully!'),
+          content: Text(
+            'Downloaded ${getFormattedTitle(book.id)} successfully to $savePath!',
+          ),
         ),
       );
     } catch (e) {
@@ -109,7 +92,7 @@ class BookCard extends StatelessWidget {
                 style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
 
-            // Display "filesize" only if available
+            // Display "File Size" only if available
             if (book.fileSize != null)
               Text(
                 '${book.fileSize}',
