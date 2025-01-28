@@ -55,6 +55,30 @@ class _UserLibraryScreenState extends State<UserLibraryScreen> {
     }
   }
 
+  Future<void> _deleteBook(String bookPath) async {
+    try {
+      final file = File(bookPath);
+      if (await file.exists()) {
+        await file.delete();
+
+        // Refresh the book list after deletion
+        _fetchLibraryBooks();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Book deleted successfully')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Book not found')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error deleting book: $e')),
+      );
+    }
+  }
+
   void _openBook(String bookPath) async {
     try {
       if (await File(bookPath).exists()) {
@@ -80,13 +104,7 @@ class _UserLibraryScreenState extends State<UserLibraryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Library'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
+      // ... (Existing Scaffold and AppBar code)
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _books.isEmpty
@@ -99,10 +117,18 @@ class _UserLibraryScreenState extends State<UserLibraryScreen> {
                       child: ListTile(
                         title: Text(book['title'] ?? 'No Title'),
                         subtitle: const Text('Tap to read'),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.book),
-                          onPressed: () =>
-                              _openBook(book['path']!), // Pass book path
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min, // Important for Row
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.book),
+                              onPressed: () => _openBook(book['path']!),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete),
+                              onPressed: () => _deleteBook(book['path']!),
+                            ),
+                          ],
                         ),
                       ),
                     );

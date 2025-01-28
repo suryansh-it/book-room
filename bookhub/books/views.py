@@ -549,7 +549,11 @@ class BookDeleteView(APIView):
 
     def delete(self,request,book_id):
         user= request.user
-        book= get_object_or_404(Book,id=book_id,user=user)
+        try:
+            book = get_object_or_404(Book, id=book_id, user=user)
+        except:
+            return Response({'error': 'Book not found.'}, status=status.HTTP_404_NOT_FOUND)
+
 
         try:
             #delete local file if it exists

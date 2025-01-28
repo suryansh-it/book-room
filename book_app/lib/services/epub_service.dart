@@ -51,6 +51,7 @@ class EpubService {
 
       if (response.statusCode == 201) {
         final downloadUrl = response.data['file_url'];
+        final bookId = response.data['book_id']; // Get book ID
         if (downloadUrl == null) {
           throw Exception("Download URL not found in the response.");
         }
@@ -73,6 +74,8 @@ class EpubService {
 
         if (downloadResponse.statusCode == 200) {
           print("Download completed for ${book.title} at $saveFilePath");
+          // Delete from backend *after* successful download
+          await _deleteBookFromServer(bookId); // New function
           return saveFilePath;
         } else {
           throw Exception(
@@ -85,6 +88,29 @@ class EpubService {
     } catch (e) {
       print("Error during download: $e");
       throw Exception("Download failed: $e");
+    }
+  }
+
+  Future<void> _deleteBookFromServer(int bookId) async {
+    final token = await _authService.getlogin();
+    if (token == null) {
+      throw Exception("Authentication required for deletion.");
+    }
+
+    _dio.options.headers['Authorization'] = 'Bearer $token';
+
+    try {
+      final response =
+          await _dio2.delete('delete/$bookId/'); // Correct delete URL
+
+      if (response.statusCode == 200) {
+        print("Book deleted from server (ID: $bookId)");
+      } else {
+        print(
+            "Failed to delete book from server: ${response.statusCode} ${response.data}");
+      }
+    } catch (e) {
+      print("Error deleting book from server: $e");
     }
   }
 }
