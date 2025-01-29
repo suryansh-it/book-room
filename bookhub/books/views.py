@@ -1,5 +1,5 @@
 from django.shortcuts import render
-import requests,os,logging, re , platform
+import requests,os,logging, re , platform, time, random
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import Book
@@ -233,6 +233,18 @@ logger = logging.getLogger(__name__)
 
 
 
+import time
+import random
+import re
+import requests
+from bs4 import BeautifulSoup
+from requests.adapters import HTTPAdapter, Retry
+from rest_framework.views import APIView
+from rest_framework.response import Response
+import logging
+
+logger = logging.getLogger(__name__)
+
 class BookSearchView(APIView):
     SITE_MIRRORS = [
         'https://libgen.li',
@@ -241,20 +253,33 @@ class BookSearchView(APIView):
     TIMEOUT = 10
     RETRY_COUNT = 3
 
+    USER_AGENTS = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 Edge/91.0.864.64',
+        'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.0) Gecko/20100101 Firefox/31.0',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.110 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:36.0) Gecko/20100101 Firefox/36.0'
+    ]
+
     @staticmethod
     def fetch_books_from_page(url, session):
         """
         Fetch books from a single page of Library Genesis.
         """
-
         headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-                }
-
-
+            'User-Agent': random.choice(BookSearchView.USER_AGENTS)  # Randomize the User-Agent header
+        }
 
         try:
-            response = session.get(url,headers=headers, timeout=10)
+            response = session.get(url, headers=headers, timeout=10)
+
+            # Handle rate-limited response
+            if response.status_code == 429:  # Rate limit status code
+                retry_after = int(response.headers.get('Retry-After', 5))  # Default to 5 seconds if not specified
+                logger.warning(f"Rate limit hit. Retrying after {retry_after} seconds.")
+                time.sleep(retry_after)  # Wait before retrying
+                return None  # Retry the same page after waiting
+
             if response.status_code != 200:
                 logger.error(f"Failed to fetch search results: {response.status_code}")
                 return None
@@ -299,12 +324,14 @@ class BookSearchView(APIView):
     def fetch_books_from_all_pages(self, search_query):
         """
         Fetch books from all pages of search results for the given query from Library Genesis mirrors.
+        Iterates through the pages until it fetches results from 10 pages or finds no more books.
+        Retries a page only once and stops if no result table is found on the page or 3 consecutive pages do not return any books.
         """
         session = requests.Session()
         retries = Retry(
             total=self.RETRY_COUNT,
             backoff_factor=1,
-            status_forcelist=[500, 502, 503, 504]
+            status_forcelist=[500, 502, 503, 504, 429]
         )
         session.mount('https://', HTTPAdapter(max_retries=retries))
 
@@ -319,36 +346,97 @@ class BookSearchView(APIView):
                 "res=100&filesuns=all"
             )
 
+            response = session.get(base_url)  # Fetch the base page for paginator information
+
+             # Count the total number of pages
+            # soup = BeautifulSoup(response.content, 'html.parser')
+            # paginator = soup.find('div', id='paginator_example_top')
+
+            # # Count the total number of pages
+            # if paginator:
+            #     # Find the table inside the paginator
+            #     table = paginator.find('table')
+            #     if table:
+            #         # Find the tbody inside the table
+            #         tbody = table.find('tbody')
+            #         if tbody:
+            #             # Find all tr elements inside the tbody
+            #             trs = tbody.find_all('tr')
+            #             if trs:
+            #                 # Get the first tr and count the td elements inside it
+            #                 first_tr = trs[0]
+            #                 td_elements = first_tr.find_all('td')
+            #                 if td_elements:
+            #                     total_pages = len(td_elements)
+            #                     print(f"Total pages: {total_pages}")
+            #                 else:
+            #                     print("No 'td' found in the first 'tr'. Assuming 1 page.")
+            #                     total_pages = 1
+            #             else:
+            #                 print("No 'tr' elements found in the 'tbody'. Assuming 1 page.")
+            #                 total_pages = 1
+            #         else:
+            #             print("No 'tbody' found in the table. Assuming 1 page.")
+            #             total_pages = 1
+            #     else:
+            #         print("No 'table' found in the paginator. Assuming 1 page.")
+            #         total_pages = 1
+            # else:
+            #     print("No paginator found. Assuming 1 page.")
+            #     total_pages = 1
+
+            total_pages= 10
             page = 1
-            while True:
-                # Construct the page-specific URL
+            pages_fetched = 0  # Track the number of pages fetched
+            consecutive_empty_pages = 0  # Track consecutive empty pages
+
+            while page <= total_pages:  # Stop fetching once we reach total_pages
                 search_url = f"{base_url}&page={page}" if page > 1 else base_url
-                logger.info(f"Fetching results from: {search_url}")
+                print(f"Attempting to fetch results from page {page}")
 
                 try:
-                    # Fetch books from the current page
                     books = self.fetch_books_from_page(search_url, session)
+
+                    # Handle rate limit
+                    if books is None:
+                        print(f"Rate limit hit while fetching page {page}. Retrying this page once...")
+                        books = self.fetch_books_from_page(search_url, session)  # Retry once
+
+                    # Skip the page if no books are found and move to the next page
                     if not books:
-                        logger.info(f"No books found on page {page}. Stopping.")
-                        break  # Stop if no books are found (end of results)
+                        print(f"No books found on page {page}. Skipping this page.")
+                        # consecutive_empty_pages += 1
+                        # if consecutive_empty_pages >= 3:  # Stop if 3 consecutive empty pages are found
+                        #     print("Three consecutive pages with no books found. Stopping fetch.")
+                        #     break
+                        page += 1
+                        continue
 
+                    # Reset consecutive_empty_pages if books are fetched
+                    consecutive_empty_pages = 0
+
+                    # If books are fetched, extend the results
                     all_books.extend(books)
-                    page += 1  # Move to the next page
+                    print(f"Page {page} fetched successfully.")
 
-                     # Random delay between requests to mimic human behavior
+                    # Increment the pages fetched counter
+                    pages_fetched += 1
+
+                    # Random delay between requests to mimic human behavior
                     time.sleep(random.uniform(1, 3))  # Random delay between 1 and 3 seconds
 
+                    page += 1  # Move to the next page
+
                 except Exception as e:
-                    logger.exception(f"Error fetching page {page}: {e}")
+                    print(f"Error fetching page {page}: {e}")
                     break
 
             if all_books:
+                print(f"Books fetched successfully from {mirror} mirror.")
                 break  # Exit after successfully fetching books from a working mirror
 
-        logger.info(f"Total books fetched: {len(all_books)}")
+        print(f"Total books fetched: {len(all_books)}")
         return all_books
-
-
 
     def get(self, request):
         """
