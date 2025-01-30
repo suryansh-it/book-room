@@ -249,6 +249,8 @@ class BookSearchView(APIView):
     SITE_MIRRORS = [
         'https://libgen.li',
         'https://libgen.is',
+        'https://libgen.rs',
+        'https://libgen.st',
     ]
     TIMEOUT = 10
     RETRY_COUNT = 3
@@ -285,27 +287,62 @@ class BookSearchView(APIView):
                 return None
 
             soup = BeautifulSoup(response.content, 'html.parser')
-            table = soup.find('table', id='tablelibgen')
-            if not table:
-                logger.error("No results table found on the page")
-                return None
 
-            books = []
-            rows = table.find_all('tr')[1:]  # Skip header row
-            for row in rows:
-                columns = row.find_all('td')
-                if len(columns) > 8:
-                    title = columns[0].find('b').text.strip() if columns[0].find('b') else 'Unknown'
-                    author = columns[1].text.strip() if len(columns) > 1 else 'Unknown'
-                    publisher = columns[2].text.strip() if len(columns) > 2 else 'Unknown'
-                    year = columns[3].text.strip() if len(columns) > 3 else 'Unknown'
-                    language = columns[4].text.strip() if len(columns) > 4 else 'Unknown'
-                    file_size = re.search(r'([\d.]+)\s?(KB|MB|GB|kB)', columns[6].text.strip())
-                    file_type = columns[7].text.strip() if len(columns) > 7 else 'Unknown'
-                    libgen_link = columns[8].find('a')['href'] if columns[8].find('a') else None
+            if 'libgen.li' in url:
+                table = soup.find('table', id='tablelibgen')  # Specific ID for libgen.li
+            
+                books = []
+                rows = table.find_all('tr')[1:]  # Skip header row
+                for row in rows:
+                    columns = row.find_all('td')
+                    if len(columns) > 8:
+                        title = columns[0].find('b').text.strip() if columns[0].find('b') else 'Unknown'
+                        author = columns[1].text.strip() if len(columns) > 1 else 'Unknown'
+                        publisher = columns[2].text.strip() if len(columns) > 2 else 'Unknown'
+                        year = columns[3].text.strip() if len(columns) > 3 else 'Unknown'
+                        language = columns[4].text.strip() if len(columns) > 4 else 'Unknown'
+                        file_size = re.search(r'([\d.]+)\s?(KB|MB|GB|kB)', columns[6].text.strip())
+                        file_type = columns[7].text.strip() if len(columns) > 7 else 'Unknown'
+                        libgen_link = columns[8].find('a')['href'] if columns[8].find('a') else None
 
-                    if file_type.lower() == 'epub':
+                        if file_type.lower() == 'epub':
+                            books.append({
+                                'title': title,
+                                'author': author,
+                                'publisher': publisher,
+                                'year': year,
+                                'language': language,
+                                'file_size': file_size.group(0) if file_size else 'Unknown',
+                                'file_type': file_type,
+                                'link': libgen_link
+                            })
+            
+            
+            else:
+                tables = soup.find_all('table')
+                table = tables[2] if len(tables) > 2 else None  # Default to third table
+
+                books = []
+    
+                # Extract rows, skipping the header row
+                rows = table.find_all('tr')[1:]
+                for row in rows:
+                    columns = row.find_all('td')
+                    
+                    if len(columns) >= 9:  # Ensure there are enough columns to parse
+                        book_id = columns[0].text.strip() if columns[0] else 'Unknown'
+                        author = columns[1].text.strip() if columns[1] else 'Unknown'
+                        title = columns[2].find('a').text.strip() if columns[2].find('a') else 'Unknown'
+                        publisher = columns[3].text.strip() if columns[3] else 'Unknown'
+                        year = columns[4].text.strip() if columns[4] else 'Unknown'
+                        language = columns[5].text.strip() if columns[5] else 'Unknown'
+                        file_size = re.search(r'([\d.]+)\s?(KB|MB|GB|kB)', columns[6].text.strip())
+                        file_type = columns[7].text.strip() if columns[7] else 'Unknown'
+                        libgen_link = columns[8].find('a')['href'] if columns[8].find('a') else None
+                        
+                        # Append book details if criteria match
                         books.append({
+                            'id': book_id,
                             'title': title,
                             'author': author,
                             'publisher': publisher,
@@ -315,6 +352,11 @@ class BookSearchView(APIView):
                             'file_type': file_type,
                             'link': libgen_link
                         })
+            
+            if not table:
+                logger.error("No results table found on the page")
+                return None
+
             return books
 
         except requests.exceptions.RequestException as e:
@@ -346,46 +388,12 @@ class BookSearchView(APIView):
                 "res=100&filesuns=all"
             )
 
-            response = session.get(base_url)  # Fetch the base page for paginator information
-
-             # Count the total number of pages
-            # soup = BeautifulSoup(response.content, 'html.parser')
-            # paginator = soup.find('div', id='paginator_example_top')
-
-            # # Count the total number of pages
-            # if paginator:
-            #     # Find the table inside the paginator
-            #     table = paginator.find('table')
-            #     if table:
-            #         # Find the tbody inside the table
-            #         tbody = table.find('tbody')
-            #         if tbody:
-            #             # Find all tr elements inside the tbody
-            #             trs = tbody.find_all('tr')
-            #             if trs:
-            #                 # Get the first tr and count the td elements inside it
-            #                 first_tr = trs[0]
-            #                 td_elements = first_tr.find_all('td')
-            #                 if td_elements:
-            #                     total_pages = len(td_elements)
-            #                     print(f"Total pages: {total_pages}")
-            #                 else:
-            #                     print("No 'td' found in the first 'tr'. Assuming 1 page.")
-            #                     total_pages = 1
-            #             else:
-            #                 print("No 'tr' elements found in the 'tbody'. Assuming 1 page.")
-            #                 total_pages = 1
-            #         else:
-            #             print("No 'tbody' found in the table. Assuming 1 page.")
-            #             total_pages = 1
-            #     else:
-            #         print("No 'table' found in the paginator. Assuming 1 page.")
-            #         total_pages = 1
-            # else:
-            #     print("No paginator found. Assuming 1 page.")
-            #     total_pages = 1
-
-            total_pages= 10
+            if mirror == 'https://libgen.li':
+                total_pages = 10  # Fixed 10 pages for libgen.li
+            else:
+                total_pages =25
+            
+            print(f"Total pages detected: {total_pages}")
             page = 1
             pages_fetched = 0  # Track the number of pages fetched
             consecutive_empty_pages = 0  # Track consecutive empty pages
@@ -405,10 +413,10 @@ class BookSearchView(APIView):
                     # Skip the page if no books are found and move to the next page
                     if not books:
                         print(f"No books found on page {page}. Skipping this page.")
-                        # consecutive_empty_pages += 1
-                        # if consecutive_empty_pages >= 3:  # Stop if 3 consecutive empty pages are found
-                        #     print("Three consecutive pages with no books found. Stopping fetch.")
-                        #     break
+                        consecutive_empty_pages += 1
+                        if consecutive_empty_pages >= 3:  # Stop if 3 consecutive empty pages are found
+                            print("Three consecutive pages with no books found. Stopping fetch.")
+                            break
                         page += 1
                         continue
 
