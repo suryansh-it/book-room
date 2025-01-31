@@ -1,17 +1,26 @@
-// import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthService {
   final Dio _dio = Dio(BaseOptions(
     baseUrl: "http://192.168.10.250:8019/api/users/",
-    connectTimeout: const Duration(seconds: 10), // 5 seconds
-    receiveTimeout: const Duration(seconds: 10), // 3 seconds
+    connectTimeout: const Duration(seconds: 10),
+    receiveTimeout: const Duration(seconds: 10),
   ));
-  // Flutter apps running on emulators use 10.0.2.2 to connect to the local development server.
+
   final FlutterSecureStorage _storage = FlutterSecureStorage();
 
-  // Login method
+  // ✅ Save Token Persistently
+  Future<void> saveToken(String token) async {
+    await _storage.write(key: 'auth_token', value: token);
+  }
+
+  // ✅ Retrieve Token
+  Future<String?> getToken() async {
+    return await _storage.read(key: 'auth_token');
+  }
+
+  // ✅ Login and Save Token
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
       final response = await _dio.post('login/', data: {
@@ -19,8 +28,7 @@ class AuthService {
         'password': password,
       });
 
-      // Save login securely
-      await _storage.write(key: 'login', value: response.data['access']);
+      await saveToken(response.data['access']); // Save token
       return response.data;
     } catch (e) {
       if (e is DioException) {
@@ -31,8 +39,8 @@ class AuthService {
     }
   }
 
-  // Signup method
-  Future<void> signup(String email, password) async {
+  /// ✅ Signup User
+  Future<void> signup(String email, String password) async {
     try {
       final response = await _dio.post('signup/', data: {
         'email': email.trim(),
@@ -40,11 +48,9 @@ class AuthService {
       });
 
       if (response.statusCode == 201) {
-        final String message = response.data['message'] ?? "Signup successful";
-        print('Signup successful: $message');
+        print('Signup successful: ${response.data['message']}');
       } else {
-        print('Unexpected response: ${response.data}');
-        throw Exception("Unexpected response code: ${response.statusCode}");
+        throw Exception("Unexpected response: ${response.statusCode}");
       }
     } catch (e) {
       if (e is DioException) {
@@ -55,13 +61,8 @@ class AuthService {
     }
   }
 
-  // Logout method
+  // ✅ Logout and Remove Token
   Future<void> logout() async {
-    await _storage.delete(key: 'login');
-  }
-
-  // Get login from storage
-  Future<String?> getlogin() async {
-    return await _storage.read(key: 'login');
+    await _storage.delete(key: 'auth_token');
   }
 }

@@ -18,7 +18,7 @@ class EpubService {
 
   Future<String> downloadEpub(Book book) async {
     try {
-      final token = await _authService.getlogin();
+      final token = await _authService.getToken();
       if (token == null) {
         throw Exception("Authentication required. Please log in.");
       }
@@ -92,7 +92,7 @@ class EpubService {
   }
 
   Future<void> _deleteAllBooks() async {
-    final token = await _authService.getlogin();
+    final token = await _authService.getToken();
     if (token == null) {
       throw Exception("Authentication required for deletion.");
     }

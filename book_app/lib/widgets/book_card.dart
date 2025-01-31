@@ -7,10 +7,10 @@ class BookCard extends StatelessWidget {
 
   const BookCard({super.key, required this.book});
 
-  // Extract title before the hashtag from `id`
-  String getFormattedTitle(String id) {
-    return id.split('#').first.trim();
-  }
+  // // Extract title before the hashtag from `id`
+  // String getFormattedTitle(String id) {
+  //   return id.split('#').first.trim();
+  // }
 
   Future<void> _downloadBook(BuildContext context) async {
     final epubService = EpubService();
@@ -21,14 +21,14 @@ class BookCard extends StatelessWidget {
         throw Exception("Download link is not available for this book.");
       }
 
-      // Initiate the download and get the file path
-      final savePath = await epubService.downloadEpub(book);
+      // Initiate the download
+      await epubService.downloadEpub(book);
 
       // Show success message in SnackBar
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Downloaded ${getFormattedTitle(book.id)} successfully to $savePath!',
+            'Downloaded ${book.title} successfully to Library!',
           ),
         ),
       );
@@ -36,7 +36,7 @@ class BookCard extends StatelessWidget {
       // Show failure message in SnackBar
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to download ${getFormattedTitle(book.id)}: $e'),
+          content: Text('Failed to download ${book.title}: $e'),
         ),
       );
     }
@@ -53,7 +53,7 @@ class BookCard extends StatelessWidget {
           children: [
             // Display formatted title
             Text(
-              getFormattedTitle(book.title),
+              book.title,
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),

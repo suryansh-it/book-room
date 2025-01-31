@@ -104,7 +104,9 @@ class _UserLibraryScreenState extends State<UserLibraryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // ... (Existing Scaffold and AppBar code)
+      appBar: AppBar(
+        title: Text('Library'),
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _books.isEmpty

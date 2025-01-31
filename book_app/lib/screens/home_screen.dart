@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
 import '/services/permission_service.dart';
+import '/providers/auth_provider.dart';
 import 'search_results_screen.dart';
 import 'user_library_screen.dart';
 
@@ -25,7 +27,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _checkPermissions() async {
     bool granted = await PermissionService().requestFilePermissions();
     if (!granted) {
-      // Show dialog if permission is not granted
       showPermissionDialog(context);
     }
     setState(() {
@@ -59,14 +60,14 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.pop(context); // Close the dialog
+              Navigator.pop(context);
             },
             child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () {
-              openAppSettings(); // Redirect to app settings
-              Navigator.pop(context); // Close the dialog after redirect
+              openAppSettings();
+              Navigator.pop(context);
             },
             child: const Text('Settings'),
           ),
@@ -75,13 +76,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // **Logout Method**
+  void _logout(BuildContext context) {
+    Provider.of<AuthProvider>(context, listen: false)
+        .logout(); // ✅ Clear auth state
+    Navigator.pushReplacementNamed(
+        context, '/login'); // ✅ Navigate to LoginScreen
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_hasPermission) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Permission Required'),
-        ),
+        appBar: AppBar(title: const Text('Permission Required')),
         body: const Center(
           child: Text(
             'File access permission is required to use this app. Please enable it in settings.',
@@ -91,16 +98,13 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // Main content of the HomeScreen
     return Scaffold(
       appBar: AppBar(
         title: const Text('Welcome to the Book App'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () {
-              Navigator.pushReplacementNamed(context, '/login');
-            },
+            onPressed: () => _logout(context), // ✅ Fixed Logout
           ),
         ],
       ),
@@ -125,9 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => const UserLibraryScreen(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const UserLibraryScreen()),
                 );
               },
               child: const Text('Go to My Library'),

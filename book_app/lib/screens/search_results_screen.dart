@@ -17,6 +17,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   List<Book> _books = [];
   List<Book> _filteredBooks = [];
   String? _selectedLanguage; // Holds the selected language filter
+  bool _isLoading = true; // Track loading state
   final List<String> _languages = [
     'English',
     'Spanish',
@@ -31,9 +32,13 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
       setState(() {
         _books = books;
         _filteredBooks = books; // Initially, show all books
+        _isLoading = false; // Set loading to false after the books are fetched
       });
     } catch (e) {
       print("Error fetching books: $e");
+      setState(() {
+        _isLoading = false; // Set loading to false even if there is an error
+      });
     }
   }
 
@@ -88,14 +93,20 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
           ),
           // Display the books (filtered or all)
           Expanded(
-            child: _filteredBooks.isEmpty
-                ? Center(child: Text('No books found'))
-                : ListView.builder(
-                    itemCount: _filteredBooks.length,
-                    itemBuilder: (context, index) {
-                      return BookCard(book: _filteredBooks[index]);
-                    },
-                  ),
+            child: _isLoading
+                ? Center(
+                    child:
+                        CircularProgressIndicator()) // Show loading indicator while books are loading
+                : _filteredBooks.isEmpty
+                    ? Center(
+                        child: Text(
+                            'No books found')) // Show message if no books found
+                    : ListView.builder(
+                        itemCount: _filteredBooks.length,
+                        itemBuilder: (context, index) {
+                          return BookCard(book: _filteredBooks[index]);
+                        },
+                      ),
           ),
         ],
       ),

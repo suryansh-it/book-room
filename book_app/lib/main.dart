@@ -8,34 +8,41 @@ import '/services/permission_service.dart'; // Import PermissionService
 
 void main() async {
   WidgetsFlutterBinding
-      .ensureInitialized(); // Ensure binding for async operations
+      .ensureInitialized(); // Ensure FlutterSecureStorage is initialized
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(
+            create: (_) =>
+                AuthProvider()..checkAuth()), // ✅ Auto-check authentication
       ],
-      child: BookApp(),
+      child: const BookApp(),
     ),
   );
 }
 
 class BookApp extends StatelessWidget {
   const BookApp({super.key});
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Book App',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      // Define routes for navigation
-      initialRoute: '/login', // Start with the login screen
-      routes: {
-        '/home': (context) => HomeScreen(),
-        '/login': (context) => LoginScreen(),
-        '/signup': (context) => SignupScreen(),
+    return Consumer<AuthProvider>(
+      builder: (context, auth, _) {
+        return MaterialApp(
+          title: 'Book App',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            primarySwatch: Colors.blue,
+          ),
+          // Show HomeScreen if authenticated, otherwise LoginScreen
+          home: auth.isAuthenticated ? HomeScreen() : LoginScreen(),
+          routes: {
+            '/home': (context) => HomeScreen(),
+            '/login': (context) => LoginScreen(),
+            '/signup': (context) => SignupScreen(),
+          },
+        );
       },
     );
   }

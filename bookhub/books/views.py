@@ -331,18 +331,18 @@ class BookSearchView(APIView):
                 for row in rows:
                     columns = row.find_all('td')
                     if len(columns) > 8:
-                            
-                        # Extract title from <b> tag if present
-                        title = columns[0].find('b').text.strip() if columns[0].find('b') else None
+                        title_author_td=columns[0]
+                        title = title_author_td.find('a').text.strip() if title_author_td.find('a') else title_author_td.find('a').text.strip()                                       
+                        b_tag = title_author_td.find('b') 
                         
-                        # If no <b> tag, extract from the 'data-original-title' attribute of <a> tag
-                        if not title:
-                            a_tag = columns[0].find('a')
-                            if a_tag and 'data-original-title' in a_tag.attrs:
-                                # Extract the title after the ID and date part (split at the semicolon)
-                                title = a_tag['data-original-title'].split(';')[1].split('ID:')[0].strip() if a_tag['data-original-title'] else 'Unknown'
+                        if b_tag:                
+                            first_a_tag = b_tag.find('a')
+                            if b_tag.text:                                
+                                title = b_tag.text.strip()
                             else:
-                                title = 'Unknown'
+                                title= first_a_tag.text.strip()
+                        
+                        
                                 
                         author = columns[1].text.strip() if len(columns) > 1 else 'Unknown'
                         publisher = columns[2].text.strip() if len(columns) > 2 else 'Unknown'
