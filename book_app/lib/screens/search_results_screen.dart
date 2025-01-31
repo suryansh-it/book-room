@@ -1,48 +1,103 @@
-import 'package:flutter/material.dart'; // Flutter package for UI design
-import '../services/book_service.dart'; // BookService for API calls
-import '../models/book.dart'; // Book model for handling data
-import '../widgets/book_card.dart'; // BookCard widget for displaying book details
+import 'package:flutter/material.dart';
+import '../services/book_service.dart';
+import '../models/book.dart';
+import '../widgets/book_card.dart';
 
-class SearchResultsScreen extends StatelessWidget {
-  final String query; // Search query from the home screen
-  final BookService _bookService = BookService(); // Instance of BookService
+class SearchResultsScreen extends StatefulWidget {
+  final String query;
 
-  SearchResultsScreen({super.key, required this.query}); // Constructor
+  SearchResultsScreen({super.key, required this.query});
 
-  // Method to fetch books using the search query
-  Future<List<Book>> _fetchBooks() {
-    return _bookService.searchBooks(query);
+  @override
+  _SearchResultsScreenState createState() => _SearchResultsScreenState();
+}
+
+class _SearchResultsScreenState extends State<SearchResultsScreen> {
+  final BookService _bookService = BookService();
+  List<Book> _books = [];
+  List<Book> _filteredBooks = [];
+  String? _selectedLanguage; // Holds the selected language filter
+  final List<String> _languages = [
+    'English',
+    'Spanish',
+    'French',
+    'Hindi'
+  ]; // Example language options
+
+  // Fetch books based on the query and update both _books and _filteredBooks
+  Future<void> _fetchBooks() async {
+    try {
+      final books = await _bookService.searchBooks(widget.query);
+      setState(() {
+        _books = books;
+        _filteredBooks = books; // Initially, show all books
+      });
+    } catch (e) {
+      print("Error fetching books: $e");
+    }
+  }
+
+  // Method to filter books based on the selected language
+  void _filterBooksByLanguage() {
+    if (_selectedLanguage == null || _selectedLanguage!.isEmpty) {
+      setState(() {
+        _filteredBooks = _books; // If no language is selected, show all books
+      });
+    } else {
+      setState(() {
+        _filteredBooks =
+            _books.where((book) => book.language == _selectedLanguage).toList();
+      });
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchBooks();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Search Results'), // AppBar title
+        title: Text('Search Results'),
       ),
-      body: FutureBuilder<List<Book>>(
-        future: _fetchBooks(), // Fetch books asynchronously
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(
-                child: CircularProgressIndicator()); // Loading indicator
-          } else if (snapshot.hasError) {
-            return Center(
-                child: Text('Error: ${snapshot.error}')); // Error handling
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(child: Text('No results found')); // No data case
-          }
-
-          // Render the list of books when data is available
-          final books = snapshot.data!;
-          return ListView.builder(
-            itemCount: books.length, // Number of items in the list
-            itemBuilder: (context, index) {
-              return BookCard(
-                  book: books[index]); // Display book details in a card
-            },
-          );
-        },
+      body: Column(
+        children: [
+          // Language filter dropdown
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: DropdownButton<String>(
+              hint: Text('Select Language'),
+              value: _selectedLanguage,
+              onChanged: (String? newLanguage) {
+                setState(() {
+                  _selectedLanguage = newLanguage;
+                  _filterBooksByLanguage(); // Apply language filter when changed
+                });
+              },
+              items:
+                  _languages.map<DropdownMenuItem<String>>((String language) {
+                return DropdownMenuItem<String>(
+                  value: language,
+                  child: Text(language),
+                );
+              }).toList(),
+            ),
+          ),
+          // Display the books (filtered or all)
+          Expanded(
+            child: _filteredBooks.isEmpty
+                ? Center(child: Text('No books found'))
+                : ListView.builder(
+                    itemCount: _filteredBooks.length,
+                    itemBuilder: (context, index) {
+                      return BookCard(book: _filteredBooks[index]);
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }
