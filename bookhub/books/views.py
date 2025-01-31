@@ -265,6 +265,32 @@ class BookSearchView(APIView):
         'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:36.0) Gecko/20100101 Firefox/36.0'
     ]
 
+    # Default mirror
+    primary_mirror = 'https://libgen.li'
+
+    @staticmethod
+    def check_mirror(mirror_url):
+        """Checks if the given mirror URL is accessible by making a simple GET request."""
+        try:
+            response = requests.get(mirror_url, timeout=5)  # 5 seconds timeout for the request
+            if response.status_code == 200:
+                return True
+            else:
+                print(f"Mirror {mirror_url} is not accessible, status code: {response.status_code}")
+                return False
+        except requests.RequestException as e:
+            print(f"Error checking mirror {mirror_url}: {e}")
+            return False
+
+    def get_primary_mirror(self):
+        """Iterates through the list of mirrors and selects the first working one."""
+        for mirror in self.SITE_MIRRORS:
+            if self.check_mirror(mirror):  # Use self to access instance method
+                return mirror  # Return the first working mirror
+        return self.primary_mirror  # Fallback to the default mirror if no mirror work
+
+
+
     @staticmethod
     def fetch_books_from_page(url, session):
         """
@@ -305,7 +331,19 @@ class BookSearchView(APIView):
                 for row in rows:
                     columns = row.find_all('td')
                     if len(columns) > 8:
-                        title = columns[0].find('b').text.strip() if columns[0].find('b') else 'Unknown'
+                            
+                        # Extract title from <b> tag if present
+                        title = columns[0].find('b').text.strip() if columns[0].find('b') else None
+                        
+                        # If no <b> tag, extract from the 'data-original-title' attribute of <a> tag
+                        if not title:
+                            a_tag = columns[0].find('a')
+                            if a_tag and 'data-original-title' in a_tag.attrs:
+                                # Extract the title after the ID and date part (split at the semicolon)
+                                title = a_tag['data-original-title'].split(';')[1].split('ID:')[0].strip() if a_tag['data-original-title'] else 'Unknown'
+                            else:
+                                title = 'Unknown'
+                                
                         author = columns[1].text.strip() if len(columns) > 1 else 'Unknown'
                         publisher = columns[2].text.strip() if len(columns) > 2 else 'Unknown'
                         year = columns[3].text.strip() if len(columns) > 3 else 'Unknown'
@@ -385,9 +423,8 @@ class BookSearchView(APIView):
         session.mount('https://', HTTPAdapter(max_retries=retries))
 
         all_books = []
-        primary_mirror = 'https://libgen.li'  # Default mirror
-        alternative_mirrors = [mirror for mirror in self.SITE_MIRRORS if mirror != primary_mirror]
-
+        primary_mirror = self.get_primary_mirror()
+        
         # Base search URL for libgen.li
         base_url = (
             f"{primary_mirror}/index.php?req={search_query}&"
@@ -398,7 +435,7 @@ class BookSearchView(APIView):
         )
 
         page = 1
-        isStop= False
+        
         while True:
             logger.info(f"Fetching page {page} from {primary_mirror}...")
 
