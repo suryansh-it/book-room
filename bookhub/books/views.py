@@ -27,7 +27,7 @@ from urllib.parse import quote
 from django.conf import settings
 from django.utils.text import slugify
 from textblob import TextBlob
-from fuzzywuzzy import process
+from fuzzywuzzy import fuzz
 
 
 # Use requests to send an HTTP request to Library Genesis.
@@ -272,10 +272,11 @@ class BookSearchView(APIView):
         """
         headers = {
             'User-Agent': random.choice(BookSearchView.USER_AGENTS)  # Randomize the User-Agent header
+        
         }
 
         try:
-            response = session.get(url, headers=headers, timeout=10)
+            response = session.get(url, headers=headers)
 
             # Handle rate-limited response
             if response.status_code == 429:  # Rate limit status code
@@ -288,16 +289,18 @@ class BookSearchView(APIView):
                 logger.error(f"Failed to fetch search results: {response.status_code}")
                 return None
 
-            soup = BeautifulSoup(response.content, 'html.parser')
-            table = None  # Initialize table to None
-            if 'libgen.li' in url:
-                table = soup.find('table', id='tablelibgen')  # Specific ID for libgen.li
+            books = []
+            content = response.content.decode("utf-8-sig")  # Removes BOM if present
             
+            
+            if 'libgen.li' in url:
+                soup = BeautifulSoup(content, 'html.parser')
+                table = soup.find('table', id='tablelibgen')  # Specific ID for libgen.li
+                # print(url)
                 if not table:
-                    logger.error(f"No table found on page: {url}. Response snippet: {response.content[:500]}")
+                    logger.error("No table found on page.")
                     return None
 
-                books = []
                 rows = table.find_all('tr')[1:]  # Skip header row
                 for row in rows:
                     columns = row.find_all('td')
@@ -320,22 +323,18 @@ class BookSearchView(APIView):
                                 'language': language,
                                 'file_size': file_size.group(0) if file_size else 'Unknown',
                                 'file_type': file_type,
-                                'link': libgen_link
+                                'download_link': libgen_link
                             })
-            
-            
             else:
+                soup = BeautifulSoup(content, 'html.parser')
                 tables = soup.find_all('table')
-                table = tables[2] if len(tables) > 2 else None  # Default to third table
-
-                if not table:
-                    logger.error(f"No table found on page: {url}. Response snippet: {response.content[:500]}")
+                
+                if len(tables) < 3:
+                    logger.error("No table found on page.")
                     return None
-
-                books = []
-    
-                # Extract rows, skipping the header row
-                rows = table.find_all('tr')[1:]
+                
+                table = tables[2]  # Use the third table
+                rows = table.find_all('tr')[1:]  # Skip header row
                 for row in rows:
                     columns = row.find_all('td')
                     
@@ -350,31 +349,33 @@ class BookSearchView(APIView):
                         file_type = columns[7].text.strip() if columns[7] else 'Unknown'
                         libgen_link = columns[8].find('a')['href'] if columns[8].find('a') else None
                         
-                        # Append book details if criteria match
-                        books.append({
-                            'id': book_id,
-                            'title': title,
-                            'author': author,
-                            'publisher': publisher,
-                            'year': year,
-                            'language': language,
-                            'file_size': file_size.group(0) if file_size else 'Unknown',
-                            'file_type': file_type,
-                            'link': libgen_link
-                        })
-
+                        if file_type.lower() == 'epub':
+                            books.append({
+                                'id': book_id,
+                                'title': title,
+                                'author': author,
+                                'publisher': publisher,
+                                'year': year,
+                                'language': language,
+                                'file_size': file_size.group(0) if file_size else 'Unknown',
+                                'file_type': file_type,
+                                'download_link': libgen_link
+                            })
+            
             return books
+
 
         except requests.exceptions.RequestException as e:
             logger.exception(f"Request Exception while fetching search results: {e}")
             return None
 
+
     def fetch_books_from_all_pages(self, search_query):
         """
-        Fetch books from all pages of search results for the given query from Library Genesis mirrors.
-        Iterates through the pages until it fetches results from 10 pages or finds no more books.
-        Retries a page only once and stops if no result table is found on the page or 3 consecutive pages do not return any books.
+        Fetch books from all pages of search results for the given query from Library Genesis.
+        Stops searching immediately if a page has no table. Skips pages that contain no EPUBs.
         """
+
         session = requests.Session()
         retries = Retry(
             total=self.RETRY_COUNT,
@@ -384,142 +385,78 @@ class BookSearchView(APIView):
         session.mount('https://', HTTPAdapter(max_retries=retries))
 
         all_books = []
+        primary_mirror = 'https://libgen.li'  # Default mirror
+        alternative_mirrors = [mirror for mirror in self.SITE_MIRRORS if mirror != primary_mirror]
 
-        for mirror in self.SITE_MIRRORS:
-            base_url = (
-                f"{mirror}/index.php?req={search_query}&"
-                "columns[]=t&columns[]=a&columns[]=s&columns[]=y&columns[]=p&columns[]=i&"
-                "objects[]=f&objects[]=e&objects[]=s&objects[]=a&objects[]=p&objects[]=w&"
-                "topics[]=l&topics[]=c&topics[]=f&topics[]=a&topics[]=m&topics[]=r&topics[]=s&"
-                "res=100&filesuns=all"
-            )
+        # Base search URL for libgen.li
+        base_url = (
+            f"{primary_mirror}/index.php?req={search_query}&"
+            "columns[]=t&columns[]=a&columns[]=s&columns[]=y&columns[]=p&columns[]=i&"
+            "objects[]=f&objects[]=e&objects[]=s&objects[]=a&objects[]=p&objects[]=w&"
+            "topics[]=l&topics[]=c&topics[]=f&topics[]=a&topics[]=m&topics[]=r&topics[]=s&"
+            "res=100&filesuns=all"
+        )
 
-            if mirror == 'https://libgen.li':
-                total_pages = 10  # Fixed 10 pages for libgen.li
-            else:
-                total_pages =25
+        page = 1
+        isStop= False
+        while True:
+            logger.info(f"Fetching page {page} from {primary_mirror}...")
+
             
-            print(f"Total pages detected: {total_pages}")
-            page = 1
-            pages_fetched = 0  # Track the number of pages fetched
-            consecutive_empty_pages = 0  # Track consecutive empty pages
 
-            while page <= total_pages:  # Stop fetching once we reach total_pages
-                search_url = f"{base_url}&page={page}" if page > 1 else base_url
-                print(f"Attempting to fetch results from page {page}")
+            # Add pagination if necessary
+            url = base_url if page == 1 else f"{base_url}&page={page}"
+            result = self.fetch_books_from_page(url, session)
+            # print(result)  # Print the fetched books for debugging
 
-                try:
-                    books = self.fetch_books_from_page(search_url, session)
+            if result is None:
+                logger.warning(f"No table found on page {page}. Stopping search and returning results.")
+                break # Stop fetching pages if no table is found
 
-                    if books is None: # Check for None instead of False
-                            print(f"Rate limit or error fetching page {page}. Retrying once...")
-                            books = self.fetch_books_from_page(search_url, session) # Retry
+            if not result:
+                logger.info(f"No EPUB books found on page {page}. Skipping.")
+                page += 1
+                continue
 
-                    if books is None: # Skip if still None
-                            print(f"Failed to fetch/retry page {page}. Skipping.")
-                            consecutive_empty_pages += 1
-                            page += 1
-                            continue
+            # Add books to list
+            all_books.extend(result)
+            logger.info(f"Fetched {len(result)} books from page {page}. Total books so far: {len(all_books)}.")
 
-                    if not books: # Check if list is empty
-                            print(f"No books found on page {page}. Skipping this page.")
-                            consecutive_empty_pages += 1
-                            if consecutive_empty_pages >= 3:  # Stop if 3 consecutive skips
-                                print("Three consecutive pages with no books found. Stopping fetch.")
-                                break # Exit the page loop
-                            page += 1
-                            continue
+        
+            # Add books to list
+            all_books.extend(result)
+            page += 1
+            time.sleep(random.uniform(1, 3))  # Avoid rate limiting
 
-                    # Reset consecutive_empty_pages if books are fetched
-                    consecutive_empty_pages = 0
-
-                    # If books are fetched, extend the results
-                    all_books.extend(books)
-                    print(f"Page {page} fetched successfully.")
-
-                    # Increment the pages fetched counter
-                    pages_fetched += 1
-
-                    # Random delay between requests to mimic human behavior
-                    time.sleep(random.uniform(1, 3))  # Random delay between 1 and 3 seconds
-
-                    page += 1  # Move to the next page
-
-                except Exception as e:
-                    print(f"Error fetching page {page}: {e}")
-                    break
-
-            if all_books:
-                print(f"Books fetched successfully from {mirror} mirror.")
-                break  # Exit after successfully fetching books from a working mirror
-
-        print(f"Total books fetched: {len(all_books)}")
-        return all_books
-
-
-    def parse_query(self, query):
-        """
-        Parses the query into structured filters like title, language, and author.
-        Example: "Harry Potter English" -> {'title': 'Harry Potter', 'language': 'English'}
-        """
-        keywords = query.split()
-        filters = {'title': '', 'author': '', 'language': ''}
-
-        # Identify language or other filters (e.g., "English", "Spanish", etc.)
-        for word in keywords:
-            if word.lower() in ['english', 'spanish', 'french', 'german','hindi']:
-                filters['language'] = word
-            else:
-                filters['title'] += word + ' '
-
-        filters['title'] = filters['title'].strip()
-        return filters
-
-    def filter_books(self, books, filters):
-        """
-        Filters the fetched books based on the parsed filters.
-        - Will allow empty filters so that we can search for only a title or language, etc.
-        """
-        filtered_books = []
-        for book in books:
-            if filters['title'] and filters['title'].lower() not in book['title'].lower():
-                continue  # Only filter by title if a title filter exists
-            if filters['language'] and filters['language'].lower() != book['language'].lower():
-                continue  # Only filter by language if a language filter exists
-            filtered_books.append(book)
-        return filtered_books
+            # If no books were found across all pages, return a message
+            
+        if all_books:
+            return all_books  # Return all books fetched from all pages
+        else:
+            return {"message": "No books found matching your query."}
+            
+            
 
     def post(self, request):
         """
-        Handles the book search request with filters and spelling corrections.
+        Handles the book search request with filters.
         """
-        # Try to get the query from the body or fallback to URL parameters
-        search_query = request.data.get('q', '').strip() or request.query_params.get('q', '').strip()
+        search_query = request.data.get('q') if isinstance(request.data, dict) else None
+        search_query = search_query or request.query_params.get('q', '').strip()
+
         if not search_query:
             return Response({"error": "Search query is required."}, status=400)
 
         try:
-            # Correct spelling in the search query
-            # corrected_query = self.correct_spelling(search_query)
+            
+            fetched_books = self.fetch_books_from_all_pages(search_query)
 
-            # Parse the corrected query into filters
-            filters = self.parse_query(search_query)
 
-            # Fetch books from all pages
-            fetched_books = self.fetch_books_from_all_pages(filters['title'])  # Pass only the title to search
-
-            # Apply filters to the fetched books
-            filtered_books = self.filter_books(fetched_books, filters)
-
-            # Handle no results
-            if not filtered_books:
-                return Response({"message": "No books found matching your query."}, status=404)
-
-            return Response({"books": filtered_books}, status=200)
+            return Response({"books": fetched_books}, status=200)
 
         except Exception as e:
-            logger.exception(f"Error in BookSearchView.post: {e}")
-            return Response({"error": f"An error occurred: {str(e)}"}, status=500)
+            logger.exception("Error in BookSearchView.post", exc_info=True)
+            return Response({"error": "An internal error occurred"}, status=500)
 
 
 

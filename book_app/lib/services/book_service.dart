@@ -87,20 +87,30 @@ class BookService {
 
   Future<List<Book>> searchBooks(String query) async {
     try {
-      final response = await _dio.get('search/', queryParameters: {'q': query});
+      final response = await _dio.post(
+        'search/',
+        data: {'q': query}, // Send query in the request body
+      );
 
-      if (response.statusCode == 200 &&
-          response.data is Map<String, dynamic> &&
-          response.data['results'] is List) {
-        final List<dynamic> booksData = response.data['results'];
-        return booksData
-            .map((book) => Book.fromJson(book))
-            .toList(); // Use Book.fromJson directly
+      if (response.statusCode == 200 && response.data is Map<String, dynamic>) {
+        if (response.data['books'] is List) {
+          // Check for 'books' key
+          final List<dynamic> booksData = response.data['books'];
+          return booksData.map((book) => Book.fromJson(book)).toList();
+        } else {
+          // Handle the case where 'books' key is missing or not a list
+          print("Unexpected data format: ${response.data}");
+          return []; // Or throw an exception if you prefer
+        }
+      } else if (response.statusCode == 404) {
+        // Handle 404 (No books found)
+        return []; // Return an empty list to indicate no results
       } else {
         throw Exception(
-            "Invalid response from server"); // More informative error
+            "Invalid response from server: ${response.statusCode} - ${response.data}");
       }
     } catch (e) {
+      print("Error fetching books: $e"); // Print error for debugging
       throw Exception("Failed to fetch books: $e");
     }
   }
