@@ -30,7 +30,7 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 # ALLOWED_HOSTS = ['127.0.0.1', '10.0.2.2', ,'*']  # Add your machine's IP if necessary
 
 # PRODUCTION
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='yourdomain.com').split(',')
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='unbind.onrender.com').split(',')
 
 # PRODUCTION
 # SECURITY HEADERS
@@ -42,7 +42,7 @@ SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
-CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='https://yourdomain.com').split(',')
+CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='https://unbind.onrender.com').split(',')
 
 
 # Application definition
@@ -171,7 +171,7 @@ REST_FRAMEWORK = {
 ASGI_APPLICATION = 'bookhub.asgi.application'
 
 # REDIS CONFIGURATION (For Channels & Celery)
-REDIS_URL = config('REDIS_URL', default='redis://localhost:6379')
+REDIS_URL = config('REDIS_URL')
 
 # Redis for Channels
 CHANNEL_LAYERS = {
@@ -201,7 +201,7 @@ CELERY_TASK_SERIALIZER = 'json'
 # CORS Settings
 # CORS_ALLOW_ALL_ORIGINS = True  # For development only, restrict for production
 # CORS & CSRF SETTINGS      #PRODUCTION
-CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='https://yourdomain.com').split(',')
+CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='https://unbind.onrender.com').split(',')
 CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
 
