@@ -88,36 +88,17 @@ class BookSearchView(APIView):
     #             return mirror  # Return the first working mirror
     #     return self.primary_mirror  # Fallback to the default mirror if no mirror work
 
-        # Fetch free proxies
-    @staticmethod
-    def get_proxies():
-        url = "https://www.sslproxies.org/"  # Free proxy provider
-        response = requests.get(url)
-        soup = BeautifulSoup(response.text, "html.parser")
-        proxy_list = []
-        
-        for row in soup.find(id="proxylisttable").tbody.find_all("tr"):
-            cols = row.find_all("td")
-            ip = cols[0].text.strip()
-            port = cols[1].text.strip()
-            https = cols[6].text.strip()
-            
-            if https == "yes":  # Only use HTTPS proxies
-                proxy_list.append(f"http://{ip}:{port}")
-        
-        return proxy_list
+    FREE_PROXIES = [
+        "http://45.77.63.52:8080",
+        "http://144.217.7.117:3128",
+        "http://103.230.92.50:8080",
+    ]
 
-    # Randomly select a proxy
     def get_random_proxy(self):
-        if not hasattr(self, "proxies") or not self.proxies:
-            self.proxies = self.get_proxies()
-        
-        if self.proxies:
-            return random.choice(self.proxies)
-        return None
+        return random.choice(self.FREE_PROXIES)
 
     @staticmethod
-    def fetch_books_from_page(self,url, session):
+    def fetch_books_from_page(url, session):
         """
         Fetch books from a single page of Library Genesis.
         """
@@ -129,41 +110,24 @@ class BookSearchView(APIView):
             'Connection': 'keep-alive',
         }
 
-        retries = 3
-        while retries > 0:
-            proxy = self.get_random_proxy()
-            proxies = {"http": proxy, "https": proxy} if proxy else None
-            try:
-                response = session.get(url, headers=headers, proxies=proxies, timeout=10)
-                
-                if response.status_code == 429:  # Too many requests
-                    retry_after = int(response.headers.get('Retry-After', 5))
-                    time.sleep(retry_after)
-                    retries -= 1
-                    continue
+        try:
+            response = session.get(url, headers=headers)
 
-                if response.status_code == 403:  # Forbidden (IP blocked)
-                    logger.warning(f"Blocked by {url}. Retrying with a new proxy...")
-                    retries -= 1
-                    continue  # Try again with a new proxy
-                
-                if response.status_code != 200:
-                    logger.error(f"Failed with status: {response.status_code}")
-                    return None
+            # Handle rate-limited response
+            if response.status_code == 429:  # Rate limit status code
+                retry_after = int(response.headers.get('Retry-After', 5))  # Default to 5 seconds if not specified
+                logger.warning(f"Rate limit hit. Retrying after {retry_after} seconds.")
+                time.sleep(retry_after)  # Wait before retrying
+                return None  # Retry the same page after waiting
 
-                return self.parse_books(response.content, url)  # Process the content
+            if response.status_code != 200:
+                logger.error(f"Failed to fetch search results: {response.status_code}")
+                return None
 
-            except requests.exceptions.RequestException as e:
-                logger.error(f"Request failed: {e}")
-                retries -= 1
-                continue  # Retry with a new proxy
-
-        logger.error("Failed after multiple retries. No working proxies.")
-        return None
-            
-            # content = response.content.decode("utf-8-sig")  # Removes BOM if present
-    def parse_books(self, content, url):    
             books = []
+            content = response.content.decode("utf-8-sig")  # Removes BOM if present
+            
+            
             if 'libgen.li' in url:
                 soup = BeautifulSoup(content, 'html.parser')
                 table = soup.find('table', id='tablelibgen')  # Specific ID for libgen.li
@@ -248,9 +212,9 @@ class BookSearchView(APIView):
             return books
 
 
-        # except requests.exceptions.RequestException as e:
-        #     logger.exception(f"Request Exception while fetching search results: {e}")
-        #     return None
+        except requests.exceptions.RequestException as e:
+            logger.exception(f"Request Exception while fetching search results: {e}")
+            return None
 
 
     def fetch_books_from_all_pages(self, search_query):
@@ -284,7 +248,10 @@ class BookSearchView(APIView):
         while True:
             logger.info(f"Fetching page {page} from {primary_mirror}...")
 
-            
+                    # Use a random proxy for each request
+            proxy = self.get_random_proxy()
+            proxies = {"http": proxy, "https": proxy}
+            session.proxies.update(proxies)
 
             # Add pagination if necessary
             url = base_url if page == 1 else f"{base_url}&page={page}"
