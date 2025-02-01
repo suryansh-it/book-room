@@ -207,8 +207,8 @@ CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
 
 
 # Razorpay
-RAZORPAY_KEY_ID = config("razorpay_key_id")
-RAZORPAY_KEY_SECRET = config("razorpay_key_secret")
+# RAZORPAY_KEY_ID = config("razorpay_key_id")
+# RAZORPAY_KEY_SECRET = config("razorpay_key_secret")
 
 
 # STATIC & MEDIA FILES CONFIGURATION
