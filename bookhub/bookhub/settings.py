@@ -23,26 +23,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-# SECURITY
-SECRET_KEY = config('SECRET_KEY')
-DEBUG = config('DEBUG', default=True, cast=bool)
+SECRET_KEY = 'django-insecure-cx=vc-=hx(8hz*+o-xo@ttq-r04s*0q^owkir0!0-=*%xixi!a'
 
-# ALLOWED_HOSTS = ['127.0.0.1', '10.0.2.2', '*']  # Add your machine's IP if necessary
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = True
 
-# PRODUCTION
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['127.0.0.1', '10.0.2.2', '192.168.240.250','*']  # Add your machine's IP if necessary
 
-# PRODUCTION
-# SECURITY HEADERS
-SECURE_SSL_REDIRECT = False
-SECURE_HSTS_SECONDS = 0  #3600 in prod
-SECURE_HSTS_INCLUDE_SUBDOMAINS = False
-SECURE_HSTS_PRELOAD = False
-SECURE_BROWSER_XSS_FILTER = False
-SECURE_CONTENT_TYPE_NOSNIFF = False
-SESSION_COOKIE_SECURE = False
-CSRF_COOKIE_SECURE = False
-# CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='https://unbind.onrender.com').split(',')
 
 
 # Application definition
@@ -55,8 +42,6 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'corsheaders',  # Enable CORS #PRODUCTION
-    'whitenoise.runserver_nostatic',  # For static file handling #PRODUCTION
     'users',
     'books',
     'payments',
@@ -66,14 +51,12 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # Enable Whitenoise #PRODUCTION
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware',  # CORS Middleware #PRODUCTION
 ]
 
 ROOT_URLCONF = 'bookhub.urls'
@@ -107,7 +90,7 @@ DATABASES = {
         'USER': config('DB_USER'),
         'PASSWORD': config('DB_PASSWORD'),
         'HOST': config('DB_HOST'),
-        'PORT': config('DB_PORT', default='5432'),
+        'PORT': config('DB_PORT'),
     }
 }
 
@@ -146,7 +129,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-
+STATIC_URL = 'static/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
@@ -170,15 +153,12 @@ REST_FRAMEWORK = {
 
 ASGI_APPLICATION = 'bookhub.asgi.application'
 
-# REDIS CONFIGURATION (For Channels & Celery)
-REDIS_URL = config('REDIS_URL', default='redis://localhost:6379')
-
 # Redis for Channels
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [REDIS_URL],
+            "hosts": [('127.0.0.1', 6379)],
         },
     },
 }
@@ -186,38 +166,24 @@ CHANNEL_LAYERS = {
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': f"{REDIS_URL}/1",     # Redis URL
+        'LOCATION': 'redis://127.0.0.1:6379/1',     # Redis URL
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
         }
     }
 }
 
-CELERY_BROKER_URL = f"{REDIS_URL}/0"
+CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 
 
 # CORS Settings
-# CORS_ALLOW_ALL_ORIGINS = True  # For development only, restrict for production
-# CORS & CSRF SETTINGS      #PRODUCTION
-# CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='https://unbind.onrender.com').split(',')
-# CORS_ALLOW_CREDENTIALS = True
-# CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
-# Allow all CORS origins in development
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = True  # For development only, restrict for production
 
 # Razorpay
-# RAZORPAY_KEY_ID = config("razorpay_key_id")
-# RAZORPAY_KEY_SECRET = config("razorpay_key_secret")
-
-
-# STATIC & MEDIA FILES CONFIGURATION
-STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'  # Enable Whitenoise for serving static files #PRODUCTION
-
+RAZORPAY_KEY_ID = config("razorpay_key_id")
+RAZORPAY_KEY_SECRET = config("razorpay_key_secret")
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
@@ -228,14 +194,14 @@ MEDIA_URL = '/media/'
 ENCRYPTION_KEY = config("ENCRYPTION_KEY")
 
 
-# SECURE_SSL_REDIRECT = False #enable in prod
-# SECURE_HSTS_SECONDS = 3600
-# SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-# SECURE_HSTS_PRELOAD = True
-# SECURE_BROWSER_XSS_FILTER = True
-# SECURE_CONTENT_TYPE_NOSNIFF = True
-# SESSION_COOKIE_SECURE = True
-# CSRF_COOKIE_SECURE = True
+SECURE_SSL_REDIRECT = False #enable in prod
+SECURE_HSTS_SECONDS = 3600
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
 
 
 # APPEND_SLASH = False

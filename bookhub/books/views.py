@@ -30,8 +30,209 @@ from textblob import TextBlob
 from fuzzywuzzy import fuzz
 
 
+# Use requests to send an HTTP request to Library Genesis.
+# Extract book information (title, author, download link, etc.) from the response.
+# Return the response to the frontend in JSON format.
+
+
+# Configure logging
+logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# from rest_framework.views import APIView
+# from rest_framework.response import Response
+# from bs4 import BeautifulSoup
+# import requests
+# from requests.adapters import HTTPAdapter
+# from urllib3.util.retry import Retry
+# from django.core.cache import cache
+# import logging
+# import re
+
+#modify it to include all the pages search results
+# class BookSearchView(APIView):
+#     """🔍 Allows users to search for books on Library Genesis with robust error handling."""
+
+#     SITE_MIRRORS = [        
+        
+#         'https://libgen.li',  # Updated mirror URL base
+#         'https://libgen.is',
+#     ]
+#     TIMEOUT = 10  # Timeout for each request (in seconds)
+#     RETRY_COUNT = 3  # Number of retries for each mirror
+
+#     def get(self, request):
+#         query = request.query_params.get('q', '').strip()  # Extract query parameter
+#         if not query:
+#             return Response({'error': 'Search query is required'}, status=400)
+
+#                 # Filter books that match the search query and are of type 'epub'
+#         books = Book.objects.filter(
+#             file_type='epub',  # Only ePub files
+#             title__icontains=query  # Case-insensitive search in the title
+#         )
+
+#         # Serialize the filtered books
+#         serializer = BookSerializer(books, many=True)
+
+#         # Generate a unique cache key
+#         cache_key = f'search_results_{query}_{hash(tuple(self.SITE_MIRRORS))}'
+#         cached_results = cache.get(cache_key)
+
+#         if cached_results:
+#             logging.info("Serving cached results")
+#             return Response({'results': cached_results}, status=200)
+
+#         books = []  # To store parsed book details
+#         session = requests.Session()
+
+#         # Configure retry mechanism
+#         retries = Retry(
+#             total=self.RETRY_COUNT,
+#             backoff_factor=1,
+#             status_forcelist=[500, 502, 503, 504]
+#         )
+#         session.mount('https://', HTTPAdapter(max_retries=retries))
+
+#         response = None
+
+#         # Iterate through mirrors
+#         for mirror in self.SITE_MIRRORS:
+#             url = (
+#                 f"{mirror}/index.php?"
+#                 f"req={query}&"
+#                 "columns[]=t&columns[]=a&columns[]=s&columns[]=y&columns[]=p&columns[]=i&"
+#                 "objects[]=f&objects[]=e&objects[]=s&objects[]=a&objects[]=p&objects[]=w&"
+#                 "topics[]=l&topics[]=c&topics[]=f&topics[]=a&topics[]=m&topics[]=r&topics[]=s&"
+#                 "res=100&filesuns=all"
+#             )
+#             try:
+#                 logging.info(f"Trying mirror: {url}")
+#                 response = session.get(url, timeout=self.TIMEOUT)
+#                 if response.status_code == 200:
+#                     logging.info(f"Mirror succeeded: {mirror}")
+#                     break
+#             except requests.RequestException as e:
+#                 logging.error(f"Error with mirror {mirror}: {e}")
+#                 continue
+
+#         if not response or response.status_code != 200:
+#             logging.error("Failed to fetch data from all Library Genesis mirrors")
+#             return Response({'error': 'Unable to fetch results. Please try again later.'}, status=500)
+
+#         # Parse the response
+#         try:
+#             soup = BeautifulSoup(response.content, 'html.parser')
+#             table = soup.find('table', {'id': 'tablelibgen'})  # Look for table with ID 'tablelibgen'
+#             if not table:
+#                 logging.error("No results table found on the page")
+#                 return Response({'error': 'No results found'}, status=404)
+
+#             rows = table.find_all('tr')[1:]  # Skip header row
+#             for row in rows:
+#                 columns = row.find_all('td')
+#                 # Ensure `columns` contains all <td> elements in the row
+                
+#                 if len(columns) > 8:  # Ensure there are enough columns
+#                     try:
+#                         # Extract title from the first <td>
+#                         title_author_td = columns[0]
+#                         # title = title_author_td.find('a').text.strip() if title_author_td.find('a') else title_author_td.find('a').text.strip()
+                        
+#                         b_tag = title_author_td.find('b')
+                        
+#                         if b_tag:
+                            
+#                             first_a_tag = b_tag.find('a')
+
+
+#                             if b_tag.text:
+                                
+#                                 title = b_tag.text.strip()
+#                             else:
+#                                 title= first_a_tag.text.strip()
+                        
+                        
+
+
+#                         # Extract author
+#                         author = columns[1].text.strip() if len(columns) > 1 else 'Unknown'
+
+#                         # Extract publisher, year, language
+#                         publisher = columns[2].text.strip() if len(columns) > 2 else 'Unknown'
+#                         year = columns[3].text.strip() if len(columns) > 3 else 'Unknown'
+#                         language = columns[4].text.strip() if len(columns) > 4 else 'Unknown'
+
+#                         # Extract file size and file type
+#                         file_size_td = columns[6]
+#                         file_size_match = re.search(r'([\d.]+)\s?(KB|MB|GB|kB)', file_size_td.text.strip())
+#                         file_size = "Unknown"  # Default value in case the file size is not found
+#                         if file_size_match:
+#                             file_size = file_size_match.group(0)  # Keep the original size with its unit (e.g., "1.5 MB")
+                        
+
+#                         file_type_td = columns[7]
+#                         file_type = file_type_td.text.strip() if len(columns) > 7 else 'Unknown'
+
+#                         # Extract the libgen download link
+                        
+#                         download_td = columns[8]
+#                         nobr_tag = download_td.find('nobr')
+                        
+#                         if nobr_tag:
+#                             # Find the first 'a' tag within the 'nobr' tag 
+#                             first_a_tag = nobr_tag.find('a') 
+
+#                             if first_a_tag:
+#                                 # Extract the 'href' attribute from the first 'a' tag
+#                                 libgen_link = first_a_tag.get('href')
+#                             else:
+#                                 libgen_link = None
+#                         else:
+#                             first_a_tag = download_td.find('a') 
+
+#                             if first_a_tag:
+#                                 # Extract the 'href' attribute from the first 'a' tag
+#                                 libgen_link = first_a_tag.get('href')
+#                             else:
+#                                 libgen_link = None
+
+                        
+#                         # Filter for ePub files only
+#                         if file_type.lower() == 'epub':
+#                             # Construct the book info dictionary
+#                             book_info = {
+#                                 'title': title,
+#                                 'author': author,
+#                                 'publisher': publisher,
+#                                 'year': year,
+#                                 'language': language,
+#                                 'file_type': file_type,
+#                                 'file_size': file_size,  # Always in MB
+#                                 'download_link': libgen_link
+#                             }
+
+#                             print("Parsed Book Info:", book_info)
+#                             books.append(book_info)  # Only append if parsing succeeds
+#                     except Exception as e:
+#                         logging.error(f"Error parsing book info: {e}")
+#                         continue
+
+#         except Exception as e:
+#             logging.error(f"Error while parsing response: {e}", exc_info=True)
+#             return Response({'error': 'Failed to parse search results'}, status=500)
+
+#         # Cache the results
+#         cache.set(cache_key, books, timeout=3600)  # Cache for 1 hour
+#         logging.info("Search results cached successfully")
+
+#         return Response({'results': books}, status=200)
+
+
+
 
 logger = logging.getLogger(__name__)
+
+
 
 
 import time
