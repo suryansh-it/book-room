@@ -67,26 +67,26 @@ class BookSearchView(APIView):
     # Default mirror
     primary_mirror = 'https://libgen.li'
 
-    @staticmethod
-    def check_mirror(mirror_url):
-        """Checks if the given mirror URL is accessible by making a simple GET request."""
-        try:
-            response = requests.get(mirror_url, timeout=5)  # 5 seconds timeout for the request
-            if response.status_code == 200:
-                return True
-            else:
-                print(f"Mirror {mirror_url} is not accessible, status code: {response.status_code}")
-                return False
-        except requests.RequestException as e:
-            print(f"Error checking mirror {mirror_url}: {e}")
-            return False
+    # @staticmethod
+    # def check_mirror(mirror_url):
+    #     """Checks if the given mirror URL is accessible by making a simple GET request."""
+    #     try:
+    #         response = requests.get(mirror_url, timeout=5)  # 5 seconds timeout for the request
+    #         if response.status_code == 200:
+    #             return True
+    #         else:
+    #             print(f"Mirror {mirror_url} is not accessible, status code: {response.status_code}")
+    #             return False
+    #     except requests.RequestException as e:
+    #         print(f"Error checking mirror {mirror_url}: {e}")
+    #         return False
 
-    def get_primary_mirror(self):
-        """Iterates through the list of mirrors and selects the first working one."""
-        for mirror in self.SITE_MIRRORS:
-            if self.check_mirror(mirror):  # Use self to access instance method
-                return mirror  # Return the first working mirror
-        return self.primary_mirror  # Fallback to the default mirror if no mirror work
+    # def get_primary_mirror(self):
+    #     """Iterates through the list of mirrors and selects the first working one."""
+    #     for mirror in self.SITE_MIRRORS:
+    #         if self.check_mirror(mirror):  # Use self to access instance method
+    #             return mirror  # Return the first working mirror
+    #     return self.primary_mirror  # Fallback to the default mirror if no mirror work
 
 
 
@@ -222,8 +222,8 @@ class BookSearchView(APIView):
         session.mount('https://', HTTPAdapter(max_retries=retries))
 
         all_books = []
-        primary_mirror = self.get_primary_mirror()
-        
+        # primary_mirror = self.get_primary_mirror()
+        primary_mirror = 'https://libgen.li'
         # Base search URL for libgen.li
         base_url = (
             f"{primary_mirror}/index.php?req={search_query}&"
