@@ -27,7 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
 
-# ALLOWED_HOSTS = ['127.0.0.1', '10.0.2.2', ,'*']  # Add your machine's IP if necessary
+# ALLOWED_HOSTS = ['127.0.0.1', '10.0.2.2', '*']  # Add your machine's IP if necessary
 
 # PRODUCTION
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='unbind.onrender.com').split(',')
