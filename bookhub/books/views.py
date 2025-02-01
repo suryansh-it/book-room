@@ -96,8 +96,11 @@ class BookSearchView(APIView):
         Fetch books from a single page of Library Genesis.
         """
         headers = {
-            'User-Agent': random.choice(BookSearchView.USER_AGENTS)  # Randomize the User-Agent header
-        
+            'User-Agent': random.choice(BookSearchView.USER_AGENTS),  # Randomize the User-Agent header
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
         }
 
         try:
