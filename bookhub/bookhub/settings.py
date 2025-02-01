@@ -182,8 +182,8 @@ CELERY_TASK_SERIALIZER = 'json'
 CORS_ALLOW_ALL_ORIGINS = True  # For development only, restrict for production
 
 # Razorpay
-RAZORPAY_KEY_ID = config("razorpay_key_id")
-RAZORPAY_KEY_SECRET = config("razorpay_key_secret")
+# RAZORPAY_KEY_ID = config("razorpay_key_id")
+# RAZORPAY_KEY_SECRET = config("razorpay_key_secret")
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
