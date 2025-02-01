@@ -25,24 +25,24 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 # SECURITY
 SECRET_KEY = config('SECRET_KEY')
-DEBUG = config('DEBUG', default=False, cast=bool)
+DEBUG = config('DEBUG', default=True, cast=bool)
 
 # ALLOWED_HOSTS = ['127.0.0.1', '10.0.2.2', '*']  # Add your machine's IP if necessary
 
 # PRODUCTION
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='unbind.onrender.com').split(',')
+ALLOWED_HOSTS = ['*']
 
 # PRODUCTION
 # SECURITY HEADERS
-SECURE_SSL_REDIRECT = True
-SECURE_HSTS_SECONDS = 3600
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='https://unbind.onrender.com').split(',')
+SECURE_SSL_REDIRECT = False
+SECURE_HSTS_SECONDS = 0  #3600 in prod
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+SECURE_HSTS_PRELOAD = False
+SECURE_BROWSER_XSS_FILTER = False
+SECURE_CONTENT_TYPE_NOSNIFF = False
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+# CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='https://unbind.onrender.com').split(',')
 
 
 # Application definition
@@ -171,7 +171,7 @@ REST_FRAMEWORK = {
 ASGI_APPLICATION = 'bookhub.asgi.application'
 
 # REDIS CONFIGURATION (For Channels & Celery)
-REDIS_URL = config('REDIS_URL')
+REDIS_URL = config('REDIS_URL', default='redis://localhost:6379')
 
 # Redis for Channels
 CHANNEL_LAYERS = {
@@ -201,10 +201,12 @@ CELERY_TASK_SERIALIZER = 'json'
 # CORS Settings
 # CORS_ALLOW_ALL_ORIGINS = True  # For development only, restrict for production
 # CORS & CSRF SETTINGS      #PRODUCTION
-CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='https://unbind.onrender.com').split(',')
+# CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='https://unbind.onrender.com').split(',')
+# CORS_ALLOW_CREDENTIALS = True
+# CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
+# Allow all CORS origins in development
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
-
 
 # Razorpay
 # RAZORPAY_KEY_ID = config("razorpay_key_id")
@@ -238,3 +240,8 @@ ENCRYPTION_KEY = config("ENCRYPTION_KEY")
 
 # APPEND_SLASH = False
 
+# Debugging tools (only in development)
+if DEBUG:
+    INSTALLED_APPS += ['debug_toolbar']
+    MIDDLEWARE.insert(1, 'debug_toolbar.middleware.DebugToolbarMiddleware')
+    INTERNAL_IPS = ['127.0.0.1']

@@ -67,35 +67,35 @@ class BookSearchView(APIView):
     # Default mirror
     primary_mirror = 'https://libgen.li'
 
-    # @staticmethod
-    # def check_mirror(mirror_url):
-    #     """Checks if the given mirror URL is accessible by making a simple GET request."""
-    #     try:
-    #         response = requests.get(mirror_url, timeout=5)  # 5 seconds timeout for the request
-    #         if response.status_code == 200:
-    #             return True
-    #         else:
-    #             print(f"Mirror {mirror_url} is not accessible, status code: {response.status_code}")
-    #             return False
-    #     except requests.RequestException as e:
-    #         print(f"Error checking mirror {mirror_url}: {e}")
-    #         return False
+    @staticmethod
+    def check_mirror(mirror_url):
+        """Checks if the given mirror URL is accessible by making a simple GET request."""
+        try:
+            response = requests.get(mirror_url, timeout=5)  # 5 seconds timeout for the request
+            if response.status_code == 200:
+                return True
+            else:
+                print(f"Mirror {mirror_url} is not accessible, status code: {response.status_code}")
+                return False
+        except requests.RequestException as e:
+            print(f"Error checking mirror {mirror_url}: {e}")
+            return False
 
-    # def get_primary_mirror(self):
-    #     """Iterates through the list of mirrors and selects the first working one."""
-    #     for mirror in self.SITE_MIRRORS:
-    #         if self.check_mirror(mirror):  # Use self to access instance method
-    #             return mirror  # Return the first working mirror
-    #     return self.primary_mirror  # Fallback to the default mirror if no mirror work
+    def get_primary_mirror(self):
+        """Iterates through the list of mirrors and selects the first working one."""
+        for mirror in self.SITE_MIRRORS:
+            if self.check_mirror(mirror):  # Use self to access instance method
+                return mirror  # Return the first working mirror
+        return self.primary_mirror  # Fallback to the default mirror if no mirror work
 
-    FREE_PROXIES = [
-        "http://45.77.63.52:8080",
-        "http://144.217.7.117:3128",
-        "http://103.230.92.50:8080",
-    ]
+    # FREE_PROXIES = [
+    #     "http://45.77.63.52:8080",
+    #     "http://144.217.7.117:3128",
+    #     "http://103.230.92.50:8080",
+    # ]
 
-    def get_random_proxy(self):
-        return random.choice(self.FREE_PROXIES)
+    # def get_random_proxy(self):
+    #     return random.choice(self.FREE_PROXIES)
 
     @staticmethod
     def fetch_books_from_page(url, session):
@@ -249,9 +249,9 @@ class BookSearchView(APIView):
             logger.info(f"Fetching page {page} from {primary_mirror}...")
 
                     # Use a random proxy for each request
-            proxy = self.get_random_proxy()
-            proxies = {"http": proxy, "https": proxy}
-            session.proxies.update(proxies)
+            # proxy = self.get_random_proxy()
+            # proxies = {"http": proxy, "https": proxy}
+            # session.proxies.update(proxies)
 
             # Add pagination if necessary
             url = base_url if page == 1 else f"{base_url}&page={page}"

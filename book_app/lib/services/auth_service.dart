@@ -1,16 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-// Or using flavors (more complex setup)
-// if (kDebugMode) {
-// baseUrl = 'http://192.168.1.100:8000/api/'; // Your local IP
-// } else {
-// baseUrl = 'https://unbind.onrender.com/api/'; // Production URL
-// }
-
 class AuthService {
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: "http://unbind.onrender.com/api/users/",
+    baseUrl: "http://192.168.10.250:8019/api/users/",
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 10),
   ));
@@ -28,7 +21,7 @@ class AuthService {
   }
 
   // ✅ Login and Save Token
-  Future<Map<String, dynamic>> login(String email, password) async {
+  Future<Map<String, dynamic>> login(String email, String password) async {
     try {
       final response = await _dio.post('login/', data: {
         'email': email,
@@ -47,7 +40,7 @@ class AuthService {
   }
 
   /// ✅ Signup User
-  Future<void> signup(String email, password) async {
+  Future<void> signup(String email, String password) async {
     try {
       final response = await _dio.post('signup/', data: {
         'email': email.trim(),
