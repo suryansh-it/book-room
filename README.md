@@ -36,7 +36,7 @@ Think of it as a DIY Kindle, built just because I needed one. 😄
 ## 🧪 Upcoming Features
 
 - 🌙 Dark mode reader
-- 🔄 Reading sync across devices
+- 🔄 Better search functionality
 
 ---
 
