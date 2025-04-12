@@ -10,7 +10,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthService {
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: "http://192.168.10.250:8019/api/users/",
+    baseUrl: "http://192.168.29.41:8019/api/users/",
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 10),
   ));

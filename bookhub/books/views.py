@@ -520,7 +520,7 @@ class BookDownloadView(APIView):
             session.mount('http://', HTTPAdapter(max_retries=retries))
             session.mount('https://', HTTPAdapter(max_retries=retries))
 
-            intermediate_url = f"https://libgen.li{libgen_link}"
+            intermediate_url = f"{libgen_link}"
             logger.info(f"Fetching intermediate page: {intermediate_url}")
             response = session.get(intermediate_url, timeout=10)
             if response.status_code != 200:

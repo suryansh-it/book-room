@@ -7,11 +7,11 @@ import 'package:flutter/material.dart';
 
 class EpubService {
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: "http://192.168.10.250:8019/api/books/",
+    baseUrl: "http://192.168.29.41:8019/api/books/",
   ));
 
   final Dio _dio2 = Dio(BaseOptions(
-    baseUrl: "http://192.168.10.250:8019/",
+    baseUrl: "http://192.168.29.41:8019/",
   ));
 
   final AuthService _authService = AuthService();
